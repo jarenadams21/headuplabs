@@ -8,6 +8,15 @@ import matplotlib.pyplot as plt  # type: ignore
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
+from qiskit.quantum_info import Statevector
+
+# System Equation:
+# The quantum state vector evolves under the Grover operator G:
+# |\psi_{k+1}\rangle = G |\psi_k\rangle
+# where G = D * O
+# - O is the Oracle operator
+# - D is the Diffuser (Inversion about the mean) operator
+# This equation governs the evolution of the quantum state in Grover's algorithm.
 
 #! Grant Data Handling
 class Grant:
@@ -24,6 +33,14 @@ grants = [
     Grant("Sustainability Initiative Grant", "Grants for sustainable development projects.", 100000, "Boston"),
     Grant("Green Technology Grant", "Funding for innovative green technologies.", 25000, "San Francisco"),
     Grant("Community Clean Energy Grant", "Support for community-based clean energy.", 60000, "Boston"),
+    Grant("Eco-Friendly Transportation Grant", "Support for sustainable transportation initiatives.", 40000, "San Diego"),
+    Grant("Recycling Innovation Grant", "Grants for innovative recycling technologies.", 35000, "Portland"),
+    Grant("Sustainable Agriculture Grant", "Funding for sustainable farming practices.", 60000, "Austin"),
+    Grant("Carbon Neutrality Grant", "Support for achieving carbon neutrality in organizations.", 70000, "Boston"),
+    Grant("Little Onion Restaurant Grant", "Support for small businesses and restaurants in California and Nevada.", 5000, "Santa Ana"),
+    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"), #! TODO: Filter, controlling the 0 and 1 function..? (IBM video)
+    Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
+    Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
     #! Fill dataset
 ]
 
@@ -33,21 +50,21 @@ class QuantumGrantSearcher:
         self.grants = grants
         self.num_grants = len(grants)
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
-        self.backend = AerSimulator()
-    ''' encode_query:
-[
-        1. encode_query_template
-            Query Processing: splits usery query into lowercase terms
-        2. matching_logic
-            Matching Logic: for each grant, compute the overlap between query terms and grant terms
-                i) Exact Match : Grants where all query terms are present
-                ii) Partial Match : Grants with some overlap, scored based on the proportion of matching terms
-        Returns
-            <R1> matching_indices: indices of grants with exact matches
-            <R2> partial_match_scores : List of tuples containing grant indicies and 'their respective match scores for partial matches'
-]
-    '''
+        self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
+
     def encode_query(self, query):
+        '''
+        encode_query:
+        [
+                1. Query Processing: splits user query into lowercase terms
+                2. Matching Logic: for each grant, compute the overlap between query terms and grant terms
+                    i) Exact Match: Grants where all query terms are present
+                    ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms
+                Returns
+                    <R1> matching_indices: indices of grants with exact matches
+                    <R2> partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches
+        ]
+        '''
         # Simulate quantum-compatible NLP to find matching grants
         query_terms = query.lower().split()
         matching_indices = []
@@ -65,50 +82,38 @@ class QuantumGrantSearcher:
                 partial_match_scores.append((i, match_score))
 
         return matching_indices, partial_match_scores
-    ''' create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indicies(matching grants for now)
-[
-        1. Mechanism:
-            i) Bit Encoding : Converts grant indicies into binary, ensuring they fit the number of qubits
-            ii) Conditional X Gates : Prepare quibits for multi-controlled operations based on the binary encoding
-            iii) Phase Flip : Uses a combination of Hadamard (H) and multi-controlled X (MCX) gates to flip the phase of the target's state
-            iv) Reverts X Gate : Returns qubits to their original state post phase flip
-        Returns
-            Void
-]
-    '''
+
     def create_oracle(self, indices):
+        '''
+        create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indices (matching grants)
+        '''
         oracle = QuantumCircuit(self.num_qubits)
         if not indices:
             return oracle.to_gate(label='Oracle')
 
         for index in indices:
             index_bin = format(index, f'0{self.num_qubits}b')
-            index_bin = index_bin[::-1]  # Reverse for little-endian
-            for qubit, bit in enumerate(index_bin):
-                if bit == '0':
+            # Apply X gates to qubits where the index bit is '0'
+            for qubit in range(self.num_qubits):
+                if index_bin[qubit] == '0':
                     oracle.x(qubit)
+            # Apply multi-controlled Z gate
             if self.num_qubits == 1:
                 oracle.z(0)
             else:
                 oracle.h(self.num_qubits - 1)
                 oracle.mcx(list(range(self.num_qubits - 1)), self.num_qubits - 1)
                 oracle.h(self.num_qubits - 1)
-            for qubit, bit in enumerate(index_bin):
-                if bit == '0':
+            # Undo the X gates
+            for qubit in range(self.num_qubits):
+                if index_bin[qubit] == '0':
                     oracle.x(qubit)
         return oracle.to_gate(label='Oracle')
 
-    ''' create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states
-[
-        1. Mechanism:
-            i) Initial Hadamards and X Gates : Prepares the qubits for the inversion operation
-            ii) Phase Flip : Similar to the Oracle, but applied universally to all states
-            iii) Reversion : Returns qubits to their original state post inversion
-        Returns
-            Void
-]
-    '''
     def create_diffuser(self):
+        '''
+        create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states
+        '''
         diffuser = QuantumCircuit(self.num_qubits)
         diffuser.h(range(self.num_qubits))
         diffuser.x(range(self.num_qubits))
@@ -122,34 +127,10 @@ class QuantumGrantSearcher:
         diffuser.h(range(self.num_qubits))
         return diffuser.to_gate(label='Diffuser')
 
-    ''' search: 
-[
-        1. Query Encoding : Process the user query to identify exact and partial matches
-        2. Selection of Indicies :
-            i) If exact matches exist, they are used as target indices
-            ii) If only partial matches exist, the top three based on match scores are selected
-            iii) If no matches, search aborted.
-        3. Quantum Circuit Initialization : 
-            i) Registers : Sets up quantum and classical registers based on available qubits
-            ii) Superposition : Applies Hadamard gates to create an equal superposition of all possible states
-        4. Oracle and Diffuser :
-            i) Constructs the Oracle and Diffuser gates tailored to the selected indices
-        5. Grover Iteration :
-            i) Determines the optimal # of Grover iterations based on # of targets and |search space|
-            ii) Applies Oracle and Diffuser sequentially for calculated # of iterations^
-        6. Measurement :
-            i) Measures the qubits, collapsing the quantum state to classical bits
-        7. Execution :
-            i) Transpiles the circuit for optimization
-            ii) Runs the circuit on the AerSimulator backend with 1024 shots
-        8. Result Interpretations:
-            i) Analyzes the measurement counts to idenfity the most probable grant index
-            ii) Retrieves and siplays the details of the best-matched grant
-            iii) If partials were considered, list the top candidates with their match scores
-        9. Visualization : Plots a histogramt of the measurement outcomes to visualize the distribution of results
-]
-    '''
     def search(self, query):
+        '''
+        search: Performs the quantum search using Grover's algorithm
+        '''
         matching_indices, partial_match_scores = self.encode_query(query)
 
         if matching_indices:
@@ -182,10 +163,34 @@ class QuantumGrantSearcher:
         if num_iterations == 0:
             num_iterations = 1  # Ensure at least one iteration
 
-        # Apply Grover's algorithm
-        for _ in range(num_iterations):
+        # Initialize the statevector
+        initial_state = Statevector.from_label('0' * self.num_qubits)
+
+        # Apply Hadamard gates to create superposition
+        state = initial_state.evolve(qc)
+
+        # Mapping from state labels to grant titles
+        state_to_grant = {}
+        for i in range(len(self.grants)):
+            state_label = format(i, f'0{self.num_qubits}b')
+            state_to_grant[state_label] = self.grants[i].title
+
+        # Collect probabilities for plotting
+        probabilities_list = []
+        probabilities = state.probabilities_dict()
+        probabilities_list.append(probabilities)
+
+        # Apply Grover's algorithm iterations
+        for iteration in range(num_iterations):
+            # Apply Oracle
             qc.append(oracle, qr)
+            state = state.evolve(oracle)
+            # Apply Diffuser
             qc.append(diffuser, qr)
+            state = state.evolve(diffuser)
+            # Compute probabilities according to Born's rule
+            probabilities = state.probabilities_dict()
+            probabilities_list.append(probabilities)
 
         # Measurement
         qc.measure(qr, cr)
@@ -198,12 +203,17 @@ class QuantumGrantSearcher:
         result = job.result()
         counts = result.get_counts()
 
+        # Map counts to grant titles
+        counts_grants = {}
+        for state_str, count in counts.items():
+            grant_index = int(state_str, 2)
+            grant_title = self.grants[grant_index].title if grant_index < len(self.grants) else 'Unknown'
+            counts_grants[grant_title] = counts_grants.get(grant_title, 0) + count
+
         # Find the most frequent result
         max_count = max(counts.values())
         most_common_states = [state for state, count in counts.items() if count == max_count]
-
-        # Decode the index (little-endian)
-        result_state = most_common_states[0][::-1]
+        result_state = most_common_states[0]
         grant_index = int(result_state, 2)
         best_grant = self.grants[grant_index]
 
@@ -221,18 +231,41 @@ class QuantumGrantSearcher:
                 grant = self.grants[index]
                 print(f"- Title: {grant.title}, Match Score: {score:.2f}")
 
-        # Plot histogram
-        plot_histogram(counts)
+        # Plot histogram of measurement results with grant titles
+        plot_histogram(counts_grants)
         plt.show()
 
-#! Main Function
-'''
-    Functionality:
-        i) Argument Parsing : Accepts a search query as a command-line arg
-        ii) Validation : Ensures query is given, otherwise exit.
-        iii) Execution : Creates 'GrantSearcher"(TM), and invokes the search on the query from args
-'''
+        # Plot probability currents
+        # Prepare data for plotting
+        iterations = range(len(probabilities_list))
+        state_labels = ['{0:0{1}b}'.format(i, self.num_qubits) for i in range(2 ** self.num_qubits)]
+
+        # For each state, collect probabilities over iterations
+        state_probabilities = {state: [] for state in state_labels}
+        for probs in probabilities_list:
+            for state in state_labels:
+                state_probabilities[state].append(probs.get(state, 0))
+
+        # Plot probabilities for each state over iterations
+        plt.figure(figsize=(12, 6))
+        for state, probs in state_probabilities.items():
+            grant_title = state_to_grant.get(state, "Unknown")
+            plt.plot(iterations, probs, label=f'{grant_title}')
+        plt.xlabel('Iteration')
+        plt.ylabel('Probability')
+        plt.title('Probability Currents Over Iterations')
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        plt.show()
+
+# Main Function
 def main():
+    '''
+    Functionality:
+        i) Argument Parsing: Accepts a search query as a command-line argument
+        ii) Validation: Ensures query is given, otherwise exits.
+        iii) Execution: Creates a QuantumGrantSearcher and invokes the search on the query from arguments
+    '''
     parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using Grover\'s Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
                         help='Search query to find relevant grants (e.g., "renewable energy Boston")')
