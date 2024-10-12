@@ -228,9 +228,9 @@ class QuantumGrantSearcher:
 #! Main Function
 '''
     Functionality:
-        i) Argument Parsing
-        ii) Validation
-        iii) Execution
+        i) Argument Parsing : Accepts a search query as a command-line arg
+        ii) Validation : Ensures query is given, otherwise exit.
+        iii) Execution : Creates 'GrantSearcher"(TM), and invokes the search on the query from args
 '''
 def main():
     parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using Grover\'s Algorithm')
