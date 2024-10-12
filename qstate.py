@@ -1,5 +1,6 @@
 # quantum_grant_search_quantum.py
 
+#! Imports and Dependencies
 import sys
 import numpy as np
 import argparse
@@ -8,7 +9,7 @@ from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 
-# Grant Data Handling
+#! Grant Data Handling
 class Grant:
     def __init__(self, title, description, amount, location):
         self.title = title
@@ -23,7 +24,7 @@ grants = [
     Grant("Sustainability Initiative Grant", "Grants for sustainable development projects.", 100000, "Boston"),
     Grant("Green Technology Grant", "Funding for innovative green technologies.", 25000, "San Francisco"),
     Grant("Community Clean Energy Grant", "Support for community-based clean energy.", 60000, "Boston"),
-    # Add more grants as needed
+    #! Fill dataset
 ]
 
 # Quantum Grant Searcher
@@ -33,7 +34,19 @@ class QuantumGrantSearcher:
         self.num_grants = len(grants)
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
         self.backend = AerSimulator()
-
+    ''' encode_query:
+[
+        1. encode_query_template
+            Query Processing: splits usery query into lowercase terms
+        2. matching_logic
+            Matching Logic: for each grant, compute the overlap between query terms and grant terms
+                i) Exact Match : Grants where all query terms are present
+                ii) Partial Match : Grants with some overlap, scored based on the proportion of matching terms
+        Returns
+            <R1> matching_indices: indices of grants with exact matches
+            <R2> partial_match_scores : List of tuples containing grant indicies and 'their respective match scores for partial matches'
+]
+    '''
     def encode_query(self, query):
         # Simulate quantum-compatible NLP to find matching grants
         query_terms = query.lower().split()
@@ -52,7 +65,17 @@ class QuantumGrantSearcher:
                 partial_match_scores.append((i, match_score))
 
         return matching_indices, partial_match_scores
-
+    ''' create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indicies(matching grants for now)
+[
+        1. Mechanism:
+            i) Bit Encoding : Converts grant indicies into binary, ensuring they fit the number of qubits
+            ii) Conditional X Gates : Prepare quibits for multi-controlled operations based on the binary encoding
+            iii) Phase Flip : Uses a combination of Hadamard (H) and multi-controlled X (MCX) gates to flip the phase of the target's state
+            iv) Reverts X Gate : Returns qubits to their original state post phase flip
+        Returns
+            Void
+]
+    '''
     def create_oracle(self, indices):
         oracle = QuantumCircuit(self.num_qubits)
         if not indices:
@@ -75,6 +98,16 @@ class QuantumGrantSearcher:
                     oracle.x(qubit)
         return oracle.to_gate(label='Oracle')
 
+    ''' create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states
+[
+        1. Mechanism:
+            i) Initial Hadamards and X Gates : Prepares the qubits for the inversion operation
+            ii) Phase Flip : Similar to the Oracle, but applied universally to all states
+            iii) Reversion : Returns qubits to their original state post inversion
+        Returns
+            Void
+]
+    '''
     def create_diffuser(self):
         diffuser = QuantumCircuit(self.num_qubits)
         diffuser.h(range(self.num_qubits))
@@ -89,6 +122,33 @@ class QuantumGrantSearcher:
         diffuser.h(range(self.num_qubits))
         return diffuser.to_gate(label='Diffuser')
 
+    ''' search: 
+[
+        1. Query Encoding : Process the user query to identify exact and partial matches
+        2. Selection of Indicies :
+            i) If exact matches exist, they are used as target indices
+            ii) If only partial matches exist, the top three based on match scores are selected
+            iii) If no matches, search aborted.
+        3. Quantum Circuit Initialization : 
+            i) Registers : Sets up quantum and classical registers based on available qubits
+            ii) Superposition : Applies Hadamard gates to create an equal superposition of all possible states
+        4. Oracle and Diffuser :
+            i) Constructs the Oracle and Diffuser gates tailored to the selected indices
+        5. Grover Iteration :
+            i) Determines the optimal # of Grover iterations based on # of targets and |search space|
+            ii) Applies Oracle and Diffuser sequentially for calculated # of iterations^
+        6. Measurement :
+            i) Measures the qubits, collapsing the quantum state to classical bits
+        7. Execution :
+            i) Transpiles the circuit for optimization
+            ii) Runs the circuit on the AerSimulator backend with 1024 shots
+        8. Result Interpretations:
+            i) Analyzes the measurement counts to idenfity the most probable grant index
+            ii) Retrieves and siplays the details of the best-matched grant
+            iii) If partials were considered, list the top candidates with their match scores
+        9. Visualization : Plots a histogramt of the measurement outcomes to visualize the distribution of results
+]
+    '''
     def search(self, query):
         matching_indices, partial_match_scores = self.encode_query(query)
 
@@ -165,7 +225,13 @@ class QuantumGrantSearcher:
         plot_histogram(counts)
         plt.show()
 
-# Main Function
+#! Main Function
+'''
+    Functionality:
+        i) Argument Parsing
+        ii) Validation
+        iii) Execution
+'''
 def main():
     parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using Grover\'s Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
