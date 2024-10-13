@@ -14,6 +14,7 @@ from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
 from matplotlib import animation
+from matplotlib.widgets import Button
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
@@ -50,7 +51,7 @@ grants = [
     Grant("Sustainable Agriculture Grant", "Funding for sustainable farming practices.", 60000, "Austin"),
     Grant("Carbon Neutrality Grant", "Support for achieving carbon neutrality in organizations.", 70000, "Boston"),
     Grant("Little Onion Restaurant Grant", "Support for small businesses and restaurants in California and Nevada.", 5000, "Santa Ana"),
-    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"), #! TODO : Filter out scams
+    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"),
     Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
     Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
     #! Fill dataset
@@ -270,35 +271,54 @@ class QuantumGrantSearcher:
         plot_histogram(counts_grants)
         plt.show()
 
-        # Plot probability currents
+        # Plot probability currents with stepper functionality
+        self.plot_with_stepper(probabilities_list, state_to_grant, indices_to_search)
+
+    def plot_with_stepper(self, probabilities_list, state_to_grant, indices_to_search):
+        '''
+        plot_with_stepper: Creates an interactive plot with stepper functionality to move back and forth between iterations.
+        '''
         # Prepare data for plotting
         iterations = range(len(probabilities_list))
-        state_labels = ['{0:0{1}b}'.format(i, self.num_qubits) for i in range(2 ** self.num_qubits)]
-
-        # For each state, collect probabilities over iterations
-        state_probabilities = {state: [] for state in state_labels}
-        for probs in probabilities_list:
-            for state in state_labels:
-                state_probabilities[state].append(probs.get(state, 0))
-
-        # Prepare data for animation
         grant_titles = [self.grants[i].title for i in range(len(self.grants))]
         grant_indices = list(range(len(self.grants)))
+        num_frames = len(probabilities_list)
+        current_frame = [0]  # Use a mutable object to allow modification inside nested functions
 
-        # Create a figure and axis for the animation
+        # Create a figure and axis for the plot
         fig, ax = plt.subplots(figsize=(12, 6))
         bars = ax.bar(grant_indices, [0]*len(self.grants), tick_label=grant_titles)
         ax.set_ylim(0, 1)
         ax.set_ylabel('Probability')
         ax.set_title('Probability Evolution Over Iterations')
         plt.xticks(rotation=90)
+        ax.set_xlabel(f'Iteration {current_frame[0]}')
 
-        # Function to update the bars for each frame
-        def animate(frame):
+        # Initialize the bars
+        def init():
             y = []
+            probabilities = probabilities_list[0]
             for grant_index in range(len(self.grants)):
                 state_label = format(grant_index, f'0{self.num_qubits}b')
-                prob = probabilities_list[frame].get(state_label, 0)
+                prob = probabilities.get(state_label, 0)
+                y.append(prob)
+            for bar, prob in zip(bars, y):
+                bar.set_height(prob)
+                if prob > 0.01:
+                    bar.set_color('green' if grant_index in indices_to_search else 'blue')
+                else:
+                    bar.set_color('grey')
+            return bars
+
+        init()
+
+        # Function to update the bars for each frame
+        def update(frame):
+            y = []
+            probabilities = probabilities_list[frame]
+            for grant_index in range(len(self.grants)):
+                state_label = format(grant_index, f'0{self.num_qubits}b')
+                prob = probabilities.get(state_label, 0)
                 y.append(prob)
             for bar, prob in zip(bars, y):
                 bar.set_height(prob)
@@ -307,14 +327,61 @@ class QuantumGrantSearcher:
                 else:
                     bar.set_color('grey')
             ax.set_xlabel(f'Iteration {frame}')
-            return bars
+            fig.canvas.draw_idle()
 
-        ani = animation.FuncAnimation(fig, animate, frames=len(probabilities_list), repeat=False)
+        # Button callback functions
+        def next_iteration(event):
+            if current_frame[0] < num_frames - 1:
+                current_frame[0] += 1
+                update(current_frame[0])
+
+        def prev_iteration(event):
+            if current_frame[0] > 0:
+                current_frame[0] -= 1
+                update(current_frame[0])
+
+        # Play/Pause functionality
+        is_playing = [False]
+
+        def play_pause(event):
+            is_playing[0] = not is_playing[0]
+            if is_playing[0]:
+                play_button.label.set_text('Pause')
+                animate()
+            else:
+                play_button.label.set_text('Play')
+
+        # Animation function
+        def animate():
+            if is_playing[0]:
+                if current_frame[0] < num_frames - 1:
+                    current_frame[0] += 1
+                else:
+                    current_frame[0] = 0  # Loop back to the start
+                update(current_frame[0])
+                fig.canvas.flush_events()
+                fig.canvas.start_event_loop(0.5)
+                animate()
+            else:
+                return
+
+        # Add buttons
+        ax_prev = plt.axes([0.7, 0.02, 0.1, 0.05])
+        ax_next = plt.axes([0.81, 0.02, 0.1, 0.05])
+        ax_play = plt.axes([0.59, 0.02, 0.1, 0.05])
+
+        btn_prev = Button(ax_prev, 'Previous')
+        btn_next = Button(ax_next, 'Next')
+        play_button = Button(ax_play, 'Play')
+
+        btn_prev.on_clicked(prev_iteration)
+        btn_next.on_clicked(next_iteration)
+        play_button.on_clicked(play_pause)
 
         plt.tight_layout()
         plt.show()
 
-    # Main Function
+# Main Function
 def main():
     '''
     Functionality:
