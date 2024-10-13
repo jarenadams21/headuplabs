@@ -11,13 +11,16 @@ from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
 import nltk
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import wordnet
+from nltk.stem import PorterStemmer
+# We can remove WordNetLemmatizer and wordnet imports since we're not using them
+# from nltk.stem import WordNetLemmatizer
+# from nltk.corpus import wordnet
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
-nltk.download('wordnet', quiet=True)
-nltk.download('omw-1.4', quiet=True)
+# No need to download 'wordnet' and 'omw-1.4' if not using them
+# nltk.download('wordnet', quiet=True)
+# nltk.download('omw-1.4', quiet=True)
 
 # System Equation:
 # The quantum state vector evolves under the Grover operator G:
@@ -47,7 +50,7 @@ grants = [
     Grant("Sustainable Agriculture Grant", "Funding for sustainable farming practices.", 60000, "Austin"),
     Grant("Carbon Neutrality Grant", "Support for achieving carbon neutrality in organizations.", 70000, "Boston"),
     Grant("Little Onion Restaurant Grant", "Support for small businesses and restaurants in California and Nevada.", 5000, "Santa Ana"),
-    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"),
+    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"), #! TODO : Filter out scams
     Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
     Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
     #! Fill dataset
@@ -61,59 +64,41 @@ class QuantumGrantSearcher:
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
         self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
 
-    def get_synonyms(self, word):
-        '''
-        get_synonyms:
-        Returns a set of synonyms for the given word using WordNet.
-        '''
-        synonyms = set()
-        for syn in wordnet.synsets(word):
-            for lem in syn.lemmas():
-                synonym = lem.name().replace('_', ' ').lower()
-                synonyms.add(synonym)
-        return synonyms
-
     def encode_query(self, query):
         '''
         encode_query:
         [
-            1. Query Processing: Splits user query into lowercase terms, lemmatizes, and expands with synonyms.
-            2. Matching Logic: For each grant, lemmatize grant terms and compute overlap with expanded query terms.
-                i) Exact Match: Grants where all query terms are matched after lemmatization and synonym expansion.
+            1. Query Processing: Splits user query into lowercase terms and stems them.
+            2. Matching Logic: For each grant, stem the grant terms and compute the overlap with stemmed query terms.
+                i) Exact Match: Grants where all query terms are present after stemming.
                 ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms.
             Returns:
-                <R1> matching_indices: Indices of grants with exact matches.
-                <R2> partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches.
+                matching_indices: Indices of grants with exact matches.
+                partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches.
         ]
         '''
-        # Initialize lemmatizer
-        lemmatizer = WordNetLemmatizer()
+        # Initialize stemmer
+        stemmer = PorterStemmer()
         
-        # Remove punctuation from query terms and lemmatize them
+        # Remove punctuation from query terms and stem them
         translator = str.maketrans('', '', string.punctuation)
         query_terms = query.lower().translate(translator).split()
-        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
-        
-        # Expand query terms with synonyms
-        expanded_query_terms = set()
-        for term in lemmatized_query_terms:
-            expanded_query_terms.add(term)
-            synonyms = self.get_synonyms(term)
-            expanded_query_terms.update(synonyms)
+        stemmed_query_terms = [stemmer.stem(term) for term in query_terms]
+        query_terms_set = set(stemmed_query_terms)
         
         matching_indices = []
         partial_match_scores = []
         
         for i, grant in enumerate(self.grants):
             grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
-            # Remove punctuation from grant text and lemmatize the terms
+            # Remove punctuation from grant text and stem the terms
             grant_text = grant_text.translate(translator)
             grant_terms = grant_text.split()
-            lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
+            stemmed_grant_terms = [stemmer.stem(term) for term in grant_terms]
             
-            grant_terms_set = set(lemmatized_grant_terms)
-            common_terms = expanded_query_terms & grant_terms_set
-            match_score = len(common_terms) / len(expanded_query_terms)
+            grant_terms_set = set(stemmed_grant_terms)
+            common_terms = query_terms_set & grant_terms_set
+            match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
             
             if match_score == 1.0:
                 matching_indices.append(i)
