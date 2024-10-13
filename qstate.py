@@ -13,6 +13,7 @@ from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
+from matplotlib import animation
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
@@ -280,21 +281,40 @@ class QuantumGrantSearcher:
             for state in state_labels:
                 state_probabilities[state].append(probs.get(state, 0))
 
-        # Plot probabilities for each state over iterations
-        plt.figure(figsize=(12, 6))
-        for state, probs in state_probabilities.items():
-            grant_title = state_to_grant.get(state, None)
-            if grant_title is None:
-                continue  # Skip states that do not correspond to grants
-            plt.plot(iterations, probs, label=f'{grant_title}')
-        plt.xlabel('Iteration')
-        plt.ylabel('Probability')
-        plt.title('Probability Currents Over Iterations')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        # Prepare data for animation
+        grant_titles = [self.grants[i].title for i in range(len(self.grants))]
+        grant_indices = list(range(len(self.grants)))
+
+        # Create a figure and axis for the animation
+        fig, ax = plt.subplots(figsize=(12, 6))
+        bars = ax.bar(grant_indices, [0]*len(self.grants), tick_label=grant_titles)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel('Probability')
+        ax.set_title('Probability Evolution Over Iterations')
+        plt.xticks(rotation=90)
+
+        # Function to update the bars for each frame
+        def animate(frame):
+            y = []
+            for grant_index in range(len(self.grants)):
+                state_label = format(grant_index, f'0{self.num_qubits}b')
+                prob = probabilities_list[frame].get(state_label, 0)
+                y.append(prob)
+            for bar, prob in zip(bars, y):
+                bar.set_height(prob)
+                if prob > 0.01:
+                    bar.set_color('green' if grant_index in indices_to_search else 'blue')
+                else:
+                    bar.set_color('grey')
+            ax.set_xlabel(f'Iteration {frame}')
+            return bars
+
+        ani = animation.FuncAnimation(fig, animate, frames=len(probabilities_list), repeat=False)
+
         plt.tight_layout()
         plt.show()
 
-# Main Function
+    # Main Function
 def main():
     '''
     Functionality:
