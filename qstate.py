@@ -6,21 +6,18 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt  # type: ignore
 import string
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
-import nltk
-from nltk.stem import PorterStemmer
-# We can remove WordNetLemmatizer and wordnet imports since we're not using them
-# from nltk.stem import WordNetLemmatizer
-# from nltk.corpus import wordnet
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
-# No need to download 'wordnet' and 'omw-1.4' if not using them
-# nltk.download('wordnet', quiet=True)
-# nltk.download('omw-1.4', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('omw-1.4', quiet=True)
 
 # System Equation:
 # The quantum state vector evolves under the Grover operator G:
@@ -29,6 +26,8 @@ nltk.download('punkt', quiet=True)
 # - O is the Oracle operator
 # - D is the Diffuser (Inversion about the mean) operator
 # This equation governs the evolution of the quantum state in Grover's algorithm.
+# The probability amplitudes evolve analogously to celestial bodies under gravitational influence,
+# with amplitudes being 'pulled' towards the target states, similar to how masses influence each other in space.
 
 # Grant Data Handling
 class Grant:
@@ -68,35 +67,35 @@ class QuantumGrantSearcher:
         '''
         encode_query:
         [
-            1. Query Processing: Splits user query into lowercase terms and stems them.
-            2. Matching Logic: For each grant, stem the grant terms and compute the overlap with stemmed query terms.
-                i) Exact Match: Grants where all query terms are present after stemming.
+            1. Query Processing: Splits user query into lowercase terms and lemmatizes them.
+            2. Matching Logic: For each grant, lemmatize the grant terms and compute the overlap with lemmatized query terms.
+                i) Exact Match: Grants where all query terms are present after lemmatization.
                 ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms.
             Returns:
                 matching_indices: Indices of grants with exact matches.
                 partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches.
         ]
         '''
-        # Initialize stemmer
-        stemmer = PorterStemmer()
+        # Initialize lemmatizer
+        lemmatizer = WordNetLemmatizer()
         
-        # Remove punctuation from query terms and stem them
+        # Remove punctuation from query terms and lemmatize them
         translator = str.maketrans('', '', string.punctuation)
-        query_terms = query.lower().translate(translator).split()
-        stemmed_query_terms = [stemmer.stem(term) for term in query_terms]
-        query_terms_set = set(stemmed_query_terms)
+        query_terms = nltk.word_tokenize(query.lower().translate(translator))
+        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
+        query_terms_set = set(lemmatized_query_terms)
         
         matching_indices = []
         partial_match_scores = []
         
         for i, grant in enumerate(self.grants):
             grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
-            # Remove punctuation from grant text and stem the terms
+            # Remove punctuation from grant text and lemmatize the terms
             grant_text = grant_text.translate(translator)
-            grant_terms = grant_text.split()
-            stemmed_grant_terms = [stemmer.stem(term) for term in grant_terms]
+            grant_terms = nltk.word_tokenize(grant_text)
+            lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
             
-            grant_terms_set = set(stemmed_grant_terms)
+            grant_terms_set = set(lemmatized_grant_terms)
             common_terms = query_terms_set & grant_terms_set
             match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
             
@@ -123,7 +122,7 @@ class QuantumGrantSearcher:
         
         # Convert the oracle matrix to an operator
         oracle_operator = Operator(oracle_matrix)
-        oracle_gate = oracle_operator.to_instruction()  # Removed 'label' argument for compatibility
+        oracle_gate = oracle_operator.to_instruction()
         return oracle_gate
 
     def create_diffuser(self):
@@ -207,6 +206,15 @@ class QuantumGrantSearcher:
             # Compute probabilities according to Born's rule
             probabilities = state.probabilities_dict()
             probabilities_list.append(probabilities)
+
+            # Print the probability currents
+            print(f"Iteration {iteration + 1}:")
+            for state_str in sorted(probabilities):
+                prob = probabilities[state_str]
+                grant_title = state_to_grant.get(state_str, None)
+                if grant_title:
+                    print(f"  State {state_str} ({grant_title}): Probability = {prob:.4f}")
+            print("-" * 50)
 
         # Measurement
         qc.measure(qr, cr)
