@@ -1,14 +1,23 @@
 # quantum_grant_search_quantum.py
 
-#! Imports and Dependencies
+# Imports and Dependencies
 import sys
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt  # type: ignore
+import string
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
-from qiskit.quantum_info import Statevector
+from qiskit.quantum_info import Statevector, Operator
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet
+
+# Ensure NLTK resources are downloaded
+nltk.download('punkt', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('omw-1.4', quiet=True)
 
 # System Equation:
 # The quantum state vector evolves under the Grover operator G:
@@ -18,7 +27,7 @@ from qiskit.quantum_info import Statevector
 # - D is the Diffuser (Inversion about the mean) operator
 # This equation governs the evolution of the quantum state in Grover's algorithm.
 
-#! Grant Data Handling
+# Grant Data Handling
 class Grant:
     def __init__(self, title, description, amount, location):
         self.title = title
@@ -38,7 +47,7 @@ grants = [
     Grant("Sustainable Agriculture Grant", "Funding for sustainable farming practices.", 60000, "Austin"),
     Grant("Carbon Neutrality Grant", "Support for achieving carbon neutrality in organizations.", 70000, "Boston"),
     Grant("Little Onion Restaurant Grant", "Support for small businesses and restaurants in California and Nevada.", 5000, "Santa Ana"),
-    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"), #! TODO: Filter, controlling the 0 and 1 function..? (IBM video)
+    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"),
     Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
     Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
     #! Fill dataset
@@ -52,67 +61,89 @@ class QuantumGrantSearcher:
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
         self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
 
+    def get_synonyms(self, word):
+        '''
+        get_synonyms:
+        Returns a set of synonyms for the given word using WordNet.
+        '''
+        synonyms = set()
+        for syn in wordnet.synsets(word):
+            for lem in syn.lemmas():
+                synonym = lem.name().replace('_', ' ').lower()
+                synonyms.add(synonym)
+        return synonyms
+
     def encode_query(self, query):
         '''
         encode_query:
         [
-                1. Query Processing: splits user query into lowercase terms
-                2. Matching Logic: for each grant, compute the overlap between query terms and grant terms
-                    i) Exact Match: Grants where all query terms are present
-                    ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms
-                Returns
-                    <R1> matching_indices: indices of grants with exact matches
-                    <R2> partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches
+            1. Query Processing: Splits user query into lowercase terms, lemmatizes, and expands with synonyms.
+            2. Matching Logic: For each grant, lemmatize grant terms and compute overlap with expanded query terms.
+                i) Exact Match: Grants where all query terms are matched after lemmatization and synonym expansion.
+                ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms.
+            Returns:
+                <R1> matching_indices: Indices of grants with exact matches.
+                <R2> partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches.
         ]
         '''
-        # Simulate quantum-compatible NLP to find matching grants
-        query_terms = query.lower().split()
+        # Initialize lemmatizer
+        lemmatizer = WordNetLemmatizer()
+        
+        # Remove punctuation from query terms and lemmatize them
+        translator = str.maketrans('', '', string.punctuation)
+        query_terms = query.lower().translate(translator).split()
+        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
+        
+        # Expand query terms with synonyms
+        expanded_query_terms = set()
+        for term in lemmatized_query_terms:
+            expanded_query_terms.add(term)
+            synonyms = self.get_synonyms(term)
+            expanded_query_terms.update(synonyms)
+        
         matching_indices = []
         partial_match_scores = []
-
+        
         for i, grant in enumerate(self.grants):
             grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
-            grant_terms = set(grant_text.split())
-            common_terms = set(query_terms) & grant_terms
-            match_score = len(common_terms) / len(set(query_terms))
-
+            # Remove punctuation from grant text and lemmatize the terms
+            grant_text = grant_text.translate(translator)
+            grant_terms = grant_text.split()
+            lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
+            
+            grant_terms_set = set(lemmatized_grant_terms)
+            common_terms = expanded_query_terms & grant_terms_set
+            match_score = len(common_terms) / len(expanded_query_terms)
+            
             if match_score == 1.0:
                 matching_indices.append(i)
             elif match_score > 0:
                 partial_match_scores.append((i, match_score))
-
+        
         return matching_indices, partial_match_scores
 
     def create_oracle(self, indices):
         '''
-        create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indices (matching grants)
+        create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indices (matching grants).
         '''
         oracle = QuantumCircuit(self.num_qubits)
         if not indices:
-            return oracle.to_gate(label='Oracle')
-
+            # No indices to flip; return identity oracle
+            return oracle.to_gate()
+        
+        # Create an oracle that flips the phase of the states corresponding to indices
+        oracle_matrix = np.identity(2 ** self.num_qubits)
         for index in indices:
-            index_bin = format(index, f'0{self.num_qubits}b')
-            # Apply X gates to qubits where the index bit is '0'
-            for qubit in range(self.num_qubits):
-                if index_bin[qubit] == '0':
-                    oracle.x(qubit)
-            # Apply multi-controlled Z gate
-            if self.num_qubits == 1:
-                oracle.z(0)
-            else:
-                oracle.h(self.num_qubits - 1)
-                oracle.mcx(list(range(self.num_qubits - 1)), self.num_qubits - 1)
-                oracle.h(self.num_qubits - 1)
-            # Undo the X gates
-            for qubit in range(self.num_qubits):
-                if index_bin[qubit] == '0':
-                    oracle.x(qubit)
-        return oracle.to_gate(label='Oracle')
+            oracle_matrix[index][index] = -1
+        
+        # Convert the oracle matrix to an operator
+        oracle_operator = Operator(oracle_matrix)
+        oracle_gate = oracle_operator.to_instruction()  # Removed 'label' argument for compatibility
+        return oracle_gate
 
     def create_diffuser(self):
         '''
-        create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states
+        create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states.
         '''
         diffuser = QuantumCircuit(self.num_qubits)
         diffuser.h(range(self.num_qubits))
@@ -125,11 +156,11 @@ class QuantumGrantSearcher:
             diffuser.h(self.num_qubits - 1)
         diffuser.x(range(self.num_qubits))
         diffuser.h(range(self.num_qubits))
-        return diffuser.to_gate(label='Diffuser')
+        return diffuser.to_gate()
 
     def search(self, query):
         '''
-        search: Performs the quantum search using Grover's algorithm
+        search: Performs the quantum search using Grover's algorithm.
         '''
         matching_indices, partial_match_scores = self.encode_query(query)
 
@@ -159,7 +190,7 @@ class QuantumGrantSearcher:
         diffuser = self.create_diffuser()
 
         # Determine the number of iterations
-        num_iterations = int(np.floor(np.pi / 4 * np.sqrt(2 ** self.num_qubits / len(indices_to_search))))
+        num_iterations = int(np.round(np.pi / 4 * np.sqrt(2 ** self.num_qubits / len(indices_to_search))))
         if num_iterations == 0:
             num_iterations = 1  # Ensure at least one iteration
 
@@ -207,15 +238,25 @@ class QuantumGrantSearcher:
         counts_grants = {}
         for state_str, count in counts.items():
             grant_index = int(state_str, 2)
-            grant_title = self.grants[grant_index].title if grant_index < len(self.grants) else 'Unknown'
-            counts_grants[grant_title] = counts_grants.get(grant_title, 0) + count
+            if grant_index < len(self.grants):
+                grant_title = self.grants[grant_index].title
+                counts_grants[grant_title] = counts_grants.get(grant_title, 0) + count
+            else:
+                continue  # Skip invalid indices
 
-        # Find the most frequent result
-        max_count = max(counts.values())
-        most_common_states = [state for state, count in counts.items() if count == max_count]
-        result_state = most_common_states[0]
-        grant_index = int(result_state, 2)
-        best_grant = self.grants[grant_index]
+        if counts_grants:
+            # Find the most frequent result
+            max_count = max(counts_grants.values())
+            most_common_titles = [title for title, count in counts_grants.items() if count == max_count]
+            best_grant_title = most_common_titles[0]
+            # Find the grant with this title
+            for grant in self.grants:
+                if grant.title == best_grant_title:
+                    best_grant = grant
+                    break
+        else:
+            print("No valid grant found in measurement results.")
+            return
 
         # Output the result
         print(f"\nThe most relevant grant based on your query '{query}' is:")
@@ -249,7 +290,9 @@ class QuantumGrantSearcher:
         # Plot probabilities for each state over iterations
         plt.figure(figsize=(12, 6))
         for state, probs in state_probabilities.items():
-            grant_title = state_to_grant.get(state, "Unknown")
+            grant_title = state_to_grant.get(state, None)
+            if grant_title is None:
+                continue  # Skip states that do not correspond to grants
             plt.plot(iterations, probs, label=f'{grant_title}')
         plt.xlabel('Iteration')
         plt.ylabel('Probability')
@@ -262,9 +305,9 @@ class QuantumGrantSearcher:
 def main():
     '''
     Functionality:
-        i) Argument Parsing: Accepts a search query as a command-line argument
+        i) Argument Parsing: Accepts a search query as a command-line argument.
         ii) Validation: Ensures query is given, otherwise exits.
-        iii) Execution: Creates a QuantumGrantSearcher and invokes the search on the query from arguments
+        iii) Execution: Creates a QuantumGrantSearcher and invokes the search on the query from arguments.
     '''
     parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using Grover\'s Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
