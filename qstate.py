@@ -4,7 +4,7 @@
 import sys
 import numpy as np
 import argparse
-import matplotlib.pyplot as plt  # type: ignore
+import matplotlib.pyplot as plt
 import string
 import nltk
 from nltk.stem import WordNetLemmatizer
@@ -13,25 +13,15 @@ from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
-from matplotlib import animation, cm
 from matplotlib.widgets import Button
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.interpolate import splprep, splev
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
-
-# System Equation:
-# The quantum state vector evolves under the Grover operator G:
-# |\psi_{k+1}\rangle = G |\psi_k\rangle
-# where G = D * O
-# - O is the Oracle operator
-# - D is the Diffuser (Inversion about the mean) operator
-# This equation governs the evolution of the quantum state in Grover's algorithm.
-# The probability amplitudes evolve analogously to celestial bodies under gravitational influence,
-# with amplitudes being 'pulled' towards the target states, similar to how masses influence each other in space.
 
 # Grant Data Handling
 class Grant:
@@ -41,6 +31,7 @@ class Grant:
         self.amount = amount
         self.location = location
 
+# Sample Grant Data (fill in the grants as before)
 # Sample Grant Data
 grants = [
     Grant("Climate Action Grant", "Funding for projects reducing carbon emissions.", 50000, "Boston"),
@@ -86,7 +77,6 @@ grants = [
     Grant("Global Health Initiative Grant", "Support for global health improvement projects.", 100000, "Geneva, Switzerland"),
 ]
 
-
 # Quantum Grant Searcher
 class QuantumGrantSearcher:
     def __init__(self, grants):
@@ -95,18 +85,16 @@ class QuantumGrantSearcher:
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
         self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
 
-    # Modify the create_oracle method
     def create_quasi_oracle(self, indices):
         '''
         Create a quasicrystal-inspired oracle that applies custom phase shifts.
         '''
-        oracle = QuantumCircuit(self.num_qubits)
         if not indices:
             # No indices to flip; return identity oracle
-            return oracle.to_gate()
+            return Operator(np.identity(2 ** self.num_qubits))
 
         # Create a phase shift function based on quasicrystal properties
-        phase_shifts = np.ones(2 ** self.num_qubits, dtype=complex)  # Ensure complex data type
+        phase_shifts = np.ones(2 ** self.num_qubits, dtype=complex)
         for index in indices:
             # Apply a custom phase shift
             phase_shifts[index] = np.exp(2j * np.pi * self.quasicrystal_phase(index))
@@ -114,43 +102,47 @@ class QuantumGrantSearcher:
         # Construct the oracle matrix
         oracle_matrix = np.diag(phase_shifts)
         oracle_operator = Operator(oracle_matrix)
-        oracle_gate = oracle_operator.to_instruction()
-        oracle_gate.label = "Quasi-Oracle"
-        return oracle_gate
-
+        return oracle_operator
 
     def quasicrystal_phase(self, index):
         '''
         Define a phase function inspired by quasicrystal patterns.
         '''
-        # Example using the golden ratio
+        # Using the golden ratio
         golden_ratio = (1 + np.sqrt(5)) / 2
         phase = (index * golden_ratio) % 1  # Fractional part
         return phase
 
-    # Modify the create_diffuser method
     def create_quasi_diffuser(self):
         '''
         Create a diffuser that accounts for quasicrystal-inspired superpositions.
         '''
         diffuser = QuantumCircuit(self.num_qubits)
-        # Custom operations can be added here
         diffuser.h(range(self.num_qubits))
         diffuser.x(range(self.num_qubits))
-        # Apply a controlled-phase gate with custom angles
+        # Apply a multi-controlled phase gate with custom angles
         angle = 2 * np.pi / (2 ** self.num_qubits)
-        diffuser.mcp(angle, list(range(self.num_qubits - 1)), self.num_qubits - 1)
+
+        if self.num_qubits == 1:
+            # For a single qubit, apply a phase shift directly
+            diffuser.p(angle, 0)
+        else:
+            # For multiple qubits, apply a multi-controlled phase gate
+            diffuser.mcp(angle, list(range(self.num_qubits - 1)), self.num_qubits - 1)
+
         diffuser.x(range(self.num_qubits))
         diffuser.h(range(self.num_qubits))
         diffuser_gate = diffuser.to_gate()
         diffuser_gate.label = "Quasi-Diffuser"
         return diffuser_gate
-    
-        # Generate Quasicrystal Lattice Points
-    def generate_quasicrystal_points(num_points):
-        # Use the 3D generalization of the Penrose tiling method
+
+    def generate_quasicrystal_points(self):
+        '''
+        Generate quasicrystal lattice points corresponding to the quantum states.
+        '''
+        num_points = 2 ** self.num_qubits
         golden_ratio = (1 + np.sqrt(5)) / 2
-        indices = np.arange(1, num_points + 1)
+        indices = np.arange(num_points)
         theta = 2 * np.pi * indices / golden_ratio
         phi = np.arccos(1 - 2 * indices / num_points)
         x = np.cos(theta) * np.sin(phi)
@@ -158,140 +150,39 @@ class QuantumGrantSearcher:
         z = np.cos(phi)
         return x, y, z
 
-    # Create the Quantum-Inspired Search Path
-    def create_search_path(x, y, z):
-        num_points = len(x)
-        # Select a subset of points to create a path
-        path_indices = np.linspace(0, num_points - 1, int(num_points / 10), dtype=int)
-        path_x = x[path_indices]
-        path_y = y[path_indices]
-        path_z = z[path_indices]
-
-        # Smooth the path using spline interpolation
-        tck, u = splprep([path_x, path_y, path_z], s=2)
-        u_new = np.linspace(u.min(), u.max(), 400)
-        smooth_path = splev(u_new, tck)
-        return smooth_path
-
-    # Plotting Function
-    def plot_quasicrystal_with_path():
-        # Generate lattice points
-        num_points = 1000
-        x, y, z = generate_quasicrystal_points(num_points)
-
-        # Generate search path
-        path_x, path_y, path_z = create_search_path(x, y, z)
-
-        # Create 3D plot
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(111, projection='3d')
-
-        # Plot lattice points
-        scatter = ax.scatter(x, y, z, c=z, cmap='viridis', alpha=0.7, s=20, label='Grant Data Points')
-
-        # Plot search path
-        ax.plot(path_x, path_y, path_z, color='red', linewidth=2, alpha=0.8, label='Quantum Search Path')
-
-        # Enhance visual appeal
-        ax.set_title('Quantum-Inspired Grant Search in a Quasicrystal Lattice')
-        ax.set_xlabel('X-axis')
-        ax.set_ylabel('Y-axis')
-        ax.set_zlabel('Z-axis')
-
-        # Add color bar
-        cbar = fig.colorbar(scatter, shrink=0.5, aspect=10)
-        cbar.set_label('Depth (Z-axis)')
-
-        # Add legend
-        ax.legend()
-
-        # Adjust viewing angle
-        ax.view_init(elev=30, azim=120)
-
-        plt.show()
-
     def encode_query(self, query):
         '''
-        encode_query:
-        [
-            1. Query Processing: Splits user query into lowercase terms and lemmatizes them.
-            2. Matching Logic: For each grant, lemmatize the grant terms and compute the overlap with lemmatized query terms.
-                i) Exact Match: Grants where all query terms are present after lemmatization.
-                ii) Partial Match: Grants with some overlap, scored based on the proportion of matching terms.
-            Returns:
-                matching_indices: Indices of grants with exact matches.
-                partial_match_scores: List of tuples containing grant indices and their respective match scores for partial matches.
-        ]
+        Process the search query and identify matching grants.
         '''
-        # Initialize lemmatizer
         lemmatizer = WordNetLemmatizer()
-        
-        # Remove punctuation from query terms and lemmatize them
         translator = str.maketrans('', '', string.punctuation)
         query_terms = nltk.word_tokenize(query.lower().translate(translator))
         lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
         query_terms_set = set(lemmatized_query_terms)
-        
+
         matching_indices = []
         partial_match_scores = []
-        
+
         for i, grant in enumerate(self.grants):
             grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
-            # Remove punctuation from grant text and lemmatize the terms
             grant_text = grant_text.translate(translator)
             grant_terms = nltk.word_tokenize(grant_text)
             lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
-            
+
             grant_terms_set = set(lemmatized_grant_terms)
             common_terms = query_terms_set & grant_terms_set
             match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
-            
+
             if match_score == 1.0:
                 matching_indices.append(i)
             elif match_score > 0:
                 partial_match_scores.append((i, match_score))
-        
+
         return matching_indices, partial_match_scores
-
-    def create_oracle(self, indices):
-        '''
-        create_oracle: Constructs the Oracle gate used in Grover's search, flipping the phase of states corresponding to target indices (matching grants).
-        '''
-        oracle = QuantumCircuit(self.num_qubits)
-        if not indices:
-            # No indices to flip; return identity oracle
-            return oracle.to_gate()
-        
-        # Create an oracle that flips the phase of the states corresponding to indices
-        oracle_matrix = np.identity(2 ** self.num_qubits)
-        for index in indices:
-            oracle_matrix[index][index] = -1
-        
-        # Convert the oracle matrix to an operator
-        oracle_operator = Operator(oracle_matrix)
-        oracle_gate = oracle_operator.to_instruction()
-        return oracle_gate
-
-    def create_diffuser(self):
-        '''
-        create_diffuser: Implements Grover diffuser (inversion about mean), amplifying probability amplitudes of target states.
-        '''
-        diffuser = QuantumCircuit(self.num_qubits)
-        diffuser.h(range(self.num_qubits))
-        diffuser.x(range(self.num_qubits))
-        if self.num_qubits == 1:
-            diffuser.z(0)
-        else:
-            diffuser.h(self.num_qubits - 1)
-            diffuser.mcx(list(range(self.num_qubits - 1)), self.num_qubits - 1)
-            diffuser.h(self.num_qubits - 1)
-        diffuser.x(range(self.num_qubits))
-        diffuser.h(range(self.num_qubits))
-        return diffuser.to_gate()
 
     def search(self, query):
         '''
-        search: Performs the quantum search using Grover's algorithm.
+        Perform the quantum search using the quasicrystal-inspired Grover's algorithm.
         '''
         matching_indices, partial_match_scores = self.encode_query(query)
 
@@ -299,9 +190,8 @@ class QuantumGrantSearcher:
             indices_to_search = matching_indices
             print("Exact matches found. Performing quantum search...")
         elif partial_match_scores:
-            # Sort grants by match score in descending order
             partial_match_scores.sort(key=lambda x: x[1], reverse=True)
-            top_matches = [index for index, score in partial_match_scores[:3]]  # Get top 3 partial matches
+            top_matches = [index for index, score in partial_match_scores[:3]]
             indices_to_search = top_matches
             print("No exact matches found. Performing quantum search on top potential candidates...")
         else:
@@ -317,19 +207,16 @@ class QuantumGrantSearcher:
         qc.h(qr)
 
         # Prepare Oracle and Diffuser
-        oracle = self.create_quasi_oracle(indices_to_search)
-        diffuser = self.create_quasi_diffuser()
+        oracle_operator = self.create_quasi_oracle(indices_to_search)
+        diffuser_gate = self.create_quasi_diffuser()
 
-        # Determine the number of iterations
-        num_iterations = int(np.round(np.pi / 4 * np.sqrt(2 ** self.num_qubits / len(indices_to_search))))
+        num_iterations = 4  # Use a constant number of iterations
         if num_iterations == 0:
-            num_iterations = 3  # Ensure at least one iteration
+            num_iterations = 1  # Ensure at least one iteration
 
         # Initialize the statevector
-        initial_state = Statevector.from_label('0' * self.num_qubits)
-
-        # Apply Hadamard gates to create superposition
-        state = initial_state.evolve(qc)
+        state = Statevector.from_label('0' * self.num_qubits)
+        state = state.evolve(qc)
 
         # Mapping from state labels to grant titles
         state_to_grant = {}
@@ -345,12 +232,12 @@ class QuantumGrantSearcher:
         # Apply Grover's algorithm iterations
         for iteration in range(num_iterations):
             # Apply Oracle
-            qc.append(oracle, qr)
-            state = state.evolve(oracle)
+            qc.append(oracle_operator.to_instruction(), qr)
+            state = state.evolve(oracle_operator)
             # Apply Diffuser
-            qc.append(diffuser, qr)
-            state = state.evolve(diffuser)
-            # Compute probabilities according to Born's rule
+            qc.append(diffuser_gate, qr)
+            state = state.evolve(diffuser_gate)
+            # Compute probabilities
             probabilities = state.probabilities_dict()
             probabilities_list.append(probabilities)
 
@@ -366,10 +253,8 @@ class QuantumGrantSearcher:
         # Measurement
         qc.measure(qr, cr)
 
-        # Transpile the circuit for the backend
+        # Transpile and execute the circuit
         transpiled_qc = transpile(qc, self.backend)
-
-        # Execute the circuit
         job = self.backend.run(transpiled_qc, shots=1024)
         result = job.result()
         counts = result.get_counts()
@@ -381,15 +266,11 @@ class QuantumGrantSearcher:
             if grant_index < len(self.grants):
                 grant_title = self.grants[grant_index].title
                 counts_grants[grant_title] = counts_grants.get(grant_title, 0) + count
-            else:
-                continue  # Skip invalid indices
 
         if counts_grants:
-            # Find the most frequent result
             max_count = max(counts_grants.values())
             most_common_titles = [title for title, count in counts_grants.items() if count == max_count]
             best_grant_title = most_common_titles[0]
-            # Find the grant with this title
             for grant in self.grants:
                 if grant.title == best_grant_title:
                     best_grant = grant
@@ -414,25 +295,28 @@ class QuantumGrantSearcher:
 
         # Plot histogram of measurement results with grant titles
         plot_histogram(counts_grants)
-        plt.show()
+        plt.show(block=False)
 
         # Plot probability currents with stepper functionality
         self.plot_with_stepper(probabilities_list, state_to_grant, indices_to_search)
 
+        # Plot the quasicrystal visualization connected to the search
+        self.plot_quasicrystal_with_probabilities(probabilities_list, indices_to_search)
+
     def plot_with_stepper(self, probabilities_list, state_to_grant, indices_to_search):
         '''
-        plot_with_stepper: Creates an interactive plot with stepper functionality to move back and forth between iterations.
+        Creates an interactive plot with stepper functionality to move back and forth between iterations.
         '''
         # Prepare data for plotting
-        iterations = range(len(probabilities_list))
         grant_titles = [self.grants[i].title for i in range(len(self.grants))]
         grant_indices = list(range(len(self.grants)))
         num_frames = len(probabilities_list)
-        current_frame = [0]  # Use a mutable object to allow modification inside nested functions
+        current_frame = [0]  # Mutable object to allow modification inside nested functions
 
         # Create a figure and axis for the plot
         fig, ax = plt.subplots(figsize=(12, 6))
-        bars = ax.bar(grant_indices, [0]*len(self.grants), tick_label=grant_titles)
+        bar_width = 0.8  # Increase bar width
+        bars = ax.bar(grant_indices, [0]*len(self.grants), bar_width, tick_label=grant_titles)
         ax.set_ylim(0, 1)
         ax.set_ylabel('Probability')
         ax.set_title('Probability Evolution Over Iterations')
@@ -447,12 +331,13 @@ class QuantumGrantSearcher:
                 state_label = format(grant_index, f'0{self.num_qubits}b')
                 prob = probabilities.get(state_label, 0)
                 y.append(prob)
-            for bar, prob in zip(bars, y):
+            for bar, prob, idx in zip(bars, y, grant_indices):
                 bar.set_height(prob)
+                bar.set_color('green' if idx in indices_to_search else 'blue')
                 if prob > 0.01:
-                    bar.set_color('green' if grant_index in indices_to_search else 'blue')
+                    bar.set_alpha(1.0)
                 else:
-                    bar.set_color('grey')
+                    bar.set_alpha(0.2)
             return bars
 
         init()
@@ -465,12 +350,13 @@ class QuantumGrantSearcher:
                 state_label = format(grant_index, f'0{self.num_qubits}b')
                 prob = probabilities.get(state_label, 0)
                 y.append(prob)
-            for bar, prob in zip(bars, y):
+            for bar, prob, idx in zip(bars, y, grant_indices):
                 bar.set_height(prob)
+                bar.set_color('green' if idx in indices_to_search else 'blue')
                 if prob > 0.01:
-                    bar.set_color('green' if grant_index in indices_to_search else 'blue')
+                    bar.set_alpha(1.0)
                 else:
-                    bar.set_color('grey')
+                    bar.set_alpha(0.2)
             ax.set_xlabel(f'Iteration {frame}')
             fig.canvas.draw_idle()
 
@@ -524,17 +410,128 @@ class QuantumGrantSearcher:
         play_button.on_clicked(play_pause)
 
         plt.tight_layout()
+        plt.show(block=False)
+
+    def plot_quasicrystal_with_probabilities(self, probabilities_list, indices_to_search):
+        '''
+        Plot the quasicrystal lattice with points sized and colored according to the probabilities.
+        '''
+        num_iterations = len(probabilities_list)
+        current_frame = [0]
+
+        # Generate quasicrystal points
+        x, y, z = self.generate_quasicrystal_points()
+        num_points = len(x)
+
+        # Prepare data mapping state indices to quasicrystal points
+        state_indices = list(range(num_points))
+        state_labels = [format(i, f'0{self.num_qubits}b') for i in state_indices]
+
+        # Create a figure and axis for the plot
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Normalize probabilities for color mapping
+        norm = Normalize(vmin=0, vmax=1)
+        cmap = plt.get_cmap('viridis')
+
+        # Initial scatter plot
+        probabilities = probabilities_list[current_frame[0]]
+        colors = []
+        sizes = []
+        for i, state_label in enumerate(state_labels):
+            prob = probabilities.get(state_label, 0)
+            colors.append(cmap(norm(prob)))
+            sizes.append(prob * 2000)  # Scale size for visibility
+
+        scatter = ax.scatter(x, y, z, c=colors, s=sizes, alpha=0.7)
+
+        # Highlight target indices
+        target_indices = [i for i in indices_to_search]
+        target_x = x[target_indices]
+        target_y = y[target_indices]
+        target_z = z[target_indices]
+        ax.scatter(target_x, target_y, target_z, c='red', s=100, label='Target Grants')
+
+        # Enhance visual appeal
+        ax.set_title('Quasicrystal Lattice Representation of Quantum States')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Z-axis')
+
+        # Add legend
+        ax.legend()
+
+        # Adjust viewing angle
+        ax.view_init(elev=30, azim=120)
+
+        # Function to update the scatter plot
+        def update(frame):
+            probabilities = probabilities_list[frame]
+            colors = []
+            sizes = []
+            for i, state_label in enumerate(state_labels):
+                prob = probabilities.get(state_label, 0)
+                colors.append(cmap(norm(prob)))
+                sizes.append(prob * 2000)
+            scatter._facecolor3d = colors
+            scatter._sizes = sizes
+            fig.canvas.draw_idle()
+
+        # Button callback functions
+        def next_iteration(event):
+            if current_frame[0] < num_iterations - 1:
+                current_frame[0] += 1
+                update(current_frame[0])
+
+        def prev_iteration(event):
+            if current_frame[0] > 0:
+                current_frame[0] -= 1
+                update(current_frame[0])
+
+        # Play/Pause functionality
+        is_playing = [False]
+
+        def play_pause(event):
+            is_playing[0] = not is_playing[0]
+            if is_playing[0]:
+                play_button.label.set_text('Pause')
+                animate()
+            else:
+                play_button.label.set_text('Play')
+
+        # Animation function
+        def animate():
+            if is_playing[0]:
+                if current_frame[0] < num_iterations - 1:
+                    current_frame[0] += 1
+                else:
+                    current_frame[0] = 0  # Loop back to the start
+                update(current_frame[0])
+                fig.canvas.flush_events()
+                fig.canvas.start_event_loop(0.5)
+                animate()
+            else:
+                return
+
+        # Add buttons
+        ax_prev = plt.axes([0.7, 0.05, 0.1, 0.05])
+        ax_next = plt.axes([0.81, 0.05, 0.1, 0.05])
+        ax_play = plt.axes([0.59, 0.05, 0.1, 0.05])
+
+        btn_prev = Button(ax_prev, 'Previous')
+        btn_next = Button(ax_next, 'Next')
+        play_button = Button(ax_play, 'Play')
+
+        btn_prev.on_clicked(prev_iteration)
+        btn_next.on_clicked(next_iteration)
+        play_button.on_clicked(play_pause)
+
         plt.show()
 
 # Main Function
 def main():
-    '''
-    Functionality:
-        i) Argument Parsing: Accepts a search query as a command-line argument.
-        ii) Validation: Ensures query is given, otherwise exits.
-        iii) Execution: Creates a QuantumGrantSearcher and invokes the search on the query from arguments.
-    '''
-    parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using Grover\'s Algorithm')
+    parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using a Quasicrystal-Inspired Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
                         help='Search query to find relevant grants (e.g., "renewable energy Boston")')
     args = parser.parse_args()
