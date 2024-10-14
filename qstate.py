@@ -31,7 +31,6 @@ class Grant:
         self.amount = amount
         self.location = location
 
-# Sample Grant Data (fill in the grants as before)
 # Sample Grant Data
 grants = [
     Grant("Climate Action Grant", "Funding for projects reducing carbon emissions.", 50000, "Boston"),
