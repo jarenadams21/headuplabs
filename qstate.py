@@ -13,8 +13,10 @@ from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
-from matplotlib import animation
+from matplotlib import animation, cm
 from matplotlib.widgets import Button
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import splprep, splev
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
@@ -54,8 +56,36 @@ grants = [
     Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"),
     Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
     Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
-    #! Fill dataset
+    # Additional Grants
+    Grant("Healthcare Innovation Grant", "Funding for innovative healthcare solutions.", 80000, "Chicago"),
+    Grant("Education Advancement Grant", "Support for educational programs and research.", 50000, "Boston"),
+    Grant("Artistic Excellence Grant", "Grants for artists and cultural projects.", 20000, "New York"),
+    Grant("Tech Startup Grant", "Funding for early-stage tech startups.", 100000, "Silicon Valley"),
+    Grant("Renewable Energy Grant", "Support for renewable energy projects and research.", 75000, "Denver"),
+    Grant("Wildlife Conservation Grant", "Funding for wildlife protection initiatives.", 60000, "Seattle"),
+    Grant("Urban Development Grant", "Support for urban renewal and development projects.", 90000, "Detroit"),
+    Grant("Cultural Heritage Grant", "Grants for preserving cultural heritage sites.", 55000, "Rome, Italy"),
+    Grant("Ocean Cleanup Grant", "Funding for ocean and marine environment cleanup.", 85000, "Sydney, Australia"),
+    Grant("AI Research Grant", "Support for artificial intelligence research.", 120000, "Boston"),
+    Grant("Food Security Grant", "Grants to improve global food security.", 70000, "Nairobi, Kenya"),
+    Grant("Space Exploration Grant", "Funding for space exploration technologies.", 150000, "Houston"),
+    Grant("Mental Health Awareness Grant", "Support for mental health programs.", 40000, "London"),
+    Grant("Disaster Relief Grant", "Grants for disaster preparedness and relief efforts.", 50000, "Tokyo"),
+    Grant("Water Purification Grant", "Funding for clean water initiatives.", 65000, "Lagos, Nigeria"),
+    Grant("Educational Exchange Grant", "Support for international educational exchanges.", 30000, "Berlin, Germany"),
+    Grant("Cybersecurity Grant", "Grants for improving cybersecurity measures.", 80000, "Washington D.C."),
+    Grant("Agricultural Technology Grant", "Funding for agri-tech innovations.", 90000, "Des Moines"),
+    Grant("Veteran Support Grant", "Support for programs aiding military veterans.", 45000, "San Antonio"),
+    Grant("Renewable Energy Egypt Grant", "Support for renewable energy projects in Egypt.", 60000, "Cairo, Egypt"),
+    Grant("Middle East Education Grant", "Funding for educational initiatives in the Middle East.", 50000, "Dubai, UAE"),
+    Grant("African Development Grant", "Grants for development projects across Africa.", 75000, "Accra, Ghana"),
+    Grant("Sahara Desert Research Grant", "Funding for environmental research in the Sahara Desert.", 55000, "Cairo, Egypt"),
+    Grant("Mediterranean Cultural Grant", "Support for cultural projects in the Mediterranean region.", 40000, "Athens, Greece"),
+    Grant("Historical Preservation Grant", "Grants for preserving historical landmarks.", 50000, "Cairo, Egypt"),
+    Grant("Educational Technology Grant", "Funding for EdTech solutions.", 80000, "Boston"),
+    Grant("Global Health Initiative Grant", "Support for global health improvement projects.", 100000, "Geneva, Switzerland"),
 ]
+
 
 # Quantum Grant Searcher
 class QuantumGrantSearcher:
@@ -64,6 +94,121 @@ class QuantumGrantSearcher:
         self.num_grants = len(grants)
         self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
         self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
+
+    # Modify the create_oracle method
+    def create_quasi_oracle(self, indices):
+        '''
+        Create a quasicrystal-inspired oracle that applies custom phase shifts.
+        '''
+        oracle = QuantumCircuit(self.num_qubits)
+        if not indices:
+            # No indices to flip; return identity oracle
+            return oracle.to_gate()
+
+        # Create a phase shift function based on quasicrystal properties
+        phase_shifts = np.ones(2 ** self.num_qubits, dtype=complex)  # Ensure complex data type
+        for index in indices:
+            # Apply a custom phase shift
+            phase_shifts[index] = np.exp(2j * np.pi * self.quasicrystal_phase(index))
+
+        # Construct the oracle matrix
+        oracle_matrix = np.diag(phase_shifts)
+        oracle_operator = Operator(oracle_matrix)
+        oracle_gate = oracle_operator.to_instruction()
+        oracle_gate.label = "Quasi-Oracle"
+        return oracle_gate
+
+
+    def quasicrystal_phase(self, index):
+        '''
+        Define a phase function inspired by quasicrystal patterns.
+        '''
+        # Example using the golden ratio
+        golden_ratio = (1 + np.sqrt(5)) / 2
+        phase = (index * golden_ratio) % 1  # Fractional part
+        return phase
+
+    # Modify the create_diffuser method
+    def create_quasi_diffuser(self):
+        '''
+        Create a diffuser that accounts for quasicrystal-inspired superpositions.
+        '''
+        diffuser = QuantumCircuit(self.num_qubits)
+        # Custom operations can be added here
+        diffuser.h(range(self.num_qubits))
+        diffuser.x(range(self.num_qubits))
+        # Apply a controlled-phase gate with custom angles
+        angle = 2 * np.pi / (2 ** self.num_qubits)
+        diffuser.mcp(angle, list(range(self.num_qubits - 1)), self.num_qubits - 1)
+        diffuser.x(range(self.num_qubits))
+        diffuser.h(range(self.num_qubits))
+        diffuser_gate = diffuser.to_gate()
+        diffuser_gate.label = "Quasi-Diffuser"
+        return diffuser_gate
+    
+        # Generate Quasicrystal Lattice Points
+    def generate_quasicrystal_points(num_points):
+        # Use the 3D generalization of the Penrose tiling method
+        golden_ratio = (1 + np.sqrt(5)) / 2
+        indices = np.arange(1, num_points + 1)
+        theta = 2 * np.pi * indices / golden_ratio
+        phi = np.arccos(1 - 2 * indices / num_points)
+        x = np.cos(theta) * np.sin(phi)
+        y = np.sin(theta) * np.sin(phi)
+        z = np.cos(phi)
+        return x, y, z
+
+    # Create the Quantum-Inspired Search Path
+    def create_search_path(x, y, z):
+        num_points = len(x)
+        # Select a subset of points to create a path
+        path_indices = np.linspace(0, num_points - 1, int(num_points / 10), dtype=int)
+        path_x = x[path_indices]
+        path_y = y[path_indices]
+        path_z = z[path_indices]
+
+        # Smooth the path using spline interpolation
+        tck, u = splprep([path_x, path_y, path_z], s=2)
+        u_new = np.linspace(u.min(), u.max(), 400)
+        smooth_path = splev(u_new, tck)
+        return smooth_path
+
+    # Plotting Function
+    def plot_quasicrystal_with_path():
+        # Generate lattice points
+        num_points = 1000
+        x, y, z = generate_quasicrystal_points(num_points)
+
+        # Generate search path
+        path_x, path_y, path_z = create_search_path(x, y, z)
+
+        # Create 3D plot
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Plot lattice points
+        scatter = ax.scatter(x, y, z, c=z, cmap='viridis', alpha=0.7, s=20, label='Grant Data Points')
+
+        # Plot search path
+        ax.plot(path_x, path_y, path_z, color='red', linewidth=2, alpha=0.8, label='Quantum Search Path')
+
+        # Enhance visual appeal
+        ax.set_title('Quantum-Inspired Grant Search in a Quasicrystal Lattice')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Z-axis')
+
+        # Add color bar
+        cbar = fig.colorbar(scatter, shrink=0.5, aspect=10)
+        cbar.set_label('Depth (Z-axis)')
+
+        # Add legend
+        ax.legend()
+
+        # Adjust viewing angle
+        ax.view_init(elev=30, azim=120)
+
+        plt.show()
 
     def encode_query(self, query):
         '''
@@ -172,13 +317,13 @@ class QuantumGrantSearcher:
         qc.h(qr)
 
         # Prepare Oracle and Diffuser
-        oracle = self.create_oracle(indices_to_search)
-        diffuser = self.create_diffuser()
+        oracle = self.create_quasi_oracle(indices_to_search)
+        diffuser = self.create_quasi_diffuser()
 
         # Determine the number of iterations
         num_iterations = int(np.round(np.pi / 4 * np.sqrt(2 ** self.num_qubits / len(indices_to_search))))
         if num_iterations == 0:
-            num_iterations = 1  # Ensure at least one iteration
+            num_iterations = 3  # Ensure at least one iteration
 
         # Initialize the statevector
         initial_state = Statevector.from_label('0' * self.num_qubits)
