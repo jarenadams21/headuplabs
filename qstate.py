@@ -17,13 +17,14 @@ from matplotlib.widgets import Button
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
+import wikipedia
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 
-# Grant Data Handling
+# Data Handling Classes
 class Grant:
     def __init__(self, title, description, amount, location):
         self.title = title
@@ -31,7 +32,13 @@ class Grant:
         self.amount = amount
         self.location = location
 
-# Sample Grant Data
+class Article:
+    def __init__(self, title, summary, url):
+        self.title = title
+        self.summary = summary
+        self.url = url
+
+# Sample Grant Data (same as before)
 grants = [
     Grant("Climate Action Grant", "Funding for projects reducing carbon emissions.", 50000, "Boston"),
     Grant("Environmental Research Grant", "Support for environmental impact studies.", 75000, "New York"),
@@ -76,12 +83,12 @@ grants = [
     Grant("Global Health Initiative Grant", "Support for global health improvement projects.", 100000, "Geneva, Switzerland"),
 ]
 
-# Quantum Grant Searcher
-class QuantumGrantSearcher:
-    def __init__(self, grants):
-        self.grants = grants
-        self.num_grants = len(grants)
-        self.num_qubits = int(np.ceil(np.log2(self.num_grants)))
+# Quantum Searcher Base Class
+class QuantumSearcher:
+    def __init__(self, data_items):
+        self.data_items = data_items
+        self.num_items = len(data_items)
+        self.num_qubits = int(np.ceil(np.log2(self.num_items)))
         self.backend = AerSimulator(method='statevector')  # Use statevector simulator for state tracking
 
     def create_quasi_oracle(self, indices):
@@ -149,176 +156,42 @@ class QuantumGrantSearcher:
         z = np.cos(phi)
         return x, y, z
 
-    def encode_query(self, query):
+    def inner_sensing(self, probabilities):
         '''
-        Process the search query and identify matching grants.
+        Perform an inner sensing routine to analyze quantum information after each iteration.
         '''
-        lemmatizer = WordNetLemmatizer()
-        translator = str.maketrans('', '', string.punctuation)
-        query_terms = nltk.word_tokenize(query.lower().translate(translator))
-        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
-        query_terms_set = set(lemmatized_query_terms)
-
-        matching_indices = []
-        partial_match_scores = []
-
-        for i, grant in enumerate(self.grants):
-            grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
-            grant_text = grant_text.translate(translator)
-            grant_terms = nltk.word_tokenize(grant_text)
-            lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
-
-            grant_terms_set = set(lemmatized_grant_terms)
-            common_terms = query_terms_set & grant_terms_set
-            match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
-
-            if match_score == 1.0:
-                matching_indices.append(i)
-            elif match_score > 0:
-                partial_match_scores.append((i, match_score))
-
-        return matching_indices, partial_match_scores
-
-    def search(self, query):
-        '''
-        Perform the quantum search using the quasicrystal-inspired Grover's algorithm.
-        '''
-        matching_indices, partial_match_scores = self.encode_query(query)
-
-        if matching_indices:
-            indices_to_search = matching_indices
-            print("Exact matches found. Performing quantum search...")
-        elif partial_match_scores:
-            partial_match_scores.sort(key=lambda x: x[1], reverse=True)
-            top_matches = [index for index, score in partial_match_scores[:3]]
-            indices_to_search = top_matches
-            print("No exact matches found. Performing quantum search on top potential candidates...")
+        print("Inner Sensing: Performing remote sensing analysis on quantum information...")
+        
+        # Entropy Calculation: Measure the uncertainty in the quantum state
+        entropy = -sum(prob * np.log2(prob) for prob in probabilities.values() if prob > 0)
+        print(f"  Quantum State Entropy: {entropy:.4f} bits")
+        
+        # Significant Probability Shifts: Identify states with high probabilities (>10%)
+        significant_states = {state: prob for state, prob in probabilities.items() if prob > 0.1}
+        if significant_states:
+            print("  Significant Probability Shifts Detected:")
+            for state, prob in significant_states.items():
+                item_title = self.get_item_title(state)
+                print(f"    - State {state} ({item_title}): Probability = {prob:.4f}")
         else:
-            print("No matching grants found.")
-            return
+            print("  No significant probability shifts detected.")
+        
+        print("Inner Sensing Complete.\n")
 
-        # Initialize quantum circuit
-        qr = QuantumRegister(self.num_qubits)
-        cr = ClassicalRegister(self.num_qubits)
-        qc = QuantumCircuit(qr, cr)
-
-        # Apply Hadamard gates to create superposition
-        qc.h(qr)
-
-        # Prepare Oracle and Diffuser
-        oracle_operator = self.create_quasi_oracle(indices_to_search)
-        diffuser_gate = self.create_quasi_diffuser()
-
-        num_iterations = 4  # Use a constant number of iterations
-        if num_iterations == 0:
-            num_iterations = 1  # Ensure at least one iteration
-
-        # Initialize the statevector
-        state = Statevector.from_label('0' * self.num_qubits)
-        state = state.evolve(qc)
-
-        # Mapping from state labels to grant titles
-        state_to_grant = {}
-        for i in range(len(self.grants)):
-            state_label = format(i, f'0{self.num_qubits}b')
-            state_to_grant[state_label] = self.grants[i].title
-
-        # Collect probabilities for plotting
-        probabilities_list = []
-        probabilities = state.probabilities_dict()
-        probabilities_list.append(probabilities)
-
-        # Apply Grover's algorithm iterations
-        for iteration in range(num_iterations):
-            # Apply Oracle
-            qc.append(oracle_operator.to_instruction(), qr)
-            state = state.evolve(oracle_operator)
-            # Apply Diffuser
-            qc.append(diffuser_gate, qr)
-            state = state.evolve(diffuser_gate)
-            # Compute probabilities
-            probabilities = state.probabilities_dict()
-            probabilities_list.append(probabilities)
-
-            # Print the probability currents
-            print(f"Iteration {iteration + 1}:")
-            for state_str in sorted(probabilities):
-                prob = probabilities[state_str]
-                grant_title = state_to_grant.get(state_str, None)
-                if grant_title:
-                    print(f"  State {state_str} ({grant_title}): Probability = {prob:.4f}")
-            print("-" * 50)
-
-            # **Inner Sensing Routine**
-            self.inner_sensing(probabilities)
-
-        # Measurement
-        qc.measure(qr, cr)
-
-        # Transpile and execute the circuit
-        transpiled_qc = transpile(qc, self.backend)
-        job = self.backend.run(transpiled_qc, shots=1024)
-        result = job.result()
-        counts = result.get_counts()
-
-        # Map counts to grant titles
-        counts_grants = {}
-        for state_str, count in counts.items():
-            grant_index = int(state_str, 2)
-            if grant_index < len(self.grants):
-                grant_title = self.grants[grant_index].title
-                counts_grants[grant_title] = counts_grants.get(grant_title, 0) + count
-
-        if counts_grants:
-            max_count = max(counts_grants.values())
-            most_common_titles = [title for title, count in counts_grants.items() if count == max_count]
-            best_grant_title = most_common_titles[0]
-            for grant in self.grants:
-                if grant.title == best_grant_title:
-                    best_grant = grant
-                    break
-        else:
-            print("No valid grant found in measurement results.")
-            return
-
-        # Output the result
-        print(f"\nThe most relevant grant based on your query '{query}' is:")
-        print(f"Title: {best_grant.title}")
-        print(f"Description: {best_grant.description}")
-        print(f"Amount: ${best_grant.amount}")
-        print(f"Location: {best_grant.location}")
-
-        # If there were partial matches, list them
-        if not matching_indices and partial_match_scores:
-            print("\nOther potential candidate grants:")
-            for index, score in partial_match_scores[:3]:
-                grant = self.grants[index]
-                print(f"- Title: {grant.title}, Match Score: {score:.2f}")
-
-        # Plot histogram of measurement results with grant titles
-        plot_histogram(counts_grants)
-        plt.show(block=False)
-
-        # Plot probability currents with stepper functionality
-        self.plot_with_stepper(probabilities_list, state_to_grant, indices_to_search)
-
-        # Plot the quasicrystal visualization connected to the search
-        self.plot_quasicrystal_with_probabilities(probabilities_list, indices_to_search)
-
-    def plot_with_stepper(self, probabilities_list, state_to_grant, indices_to_search):
+    def plot_with_stepper(self, probabilities_list, state_to_item, indices_to_search):
         '''
         Creates an interactive plot with stepper functionality to move back and forth between iterations.
         '''
         # Prepare data for plotting
-        grant_titles = [self.grants[i].title for i in range(len(self.grants))]
-        grant_indices = list(range(len(self.grants)))
+        item_titles = [self.data_items[i].title for i in range(len(self.data_items))]
+        item_indices = list(range(len(self.data_items)))
         num_frames = len(probabilities_list)
         current_frame = [0]  # Mutable object to allow modification inside nested functions
 
         # Create a figure and axis for the plot
         fig, ax = plt.subplots(figsize=(12, 6))
         bar_width = 0.8  # Increase bar width
-        bars = ax.bar(grant_indices, [0]*len(self.grants), bar_width, tick_label=grant_titles)
+        bars = ax.bar(item_indices, [0]*len(self.data_items), bar_width, tick_label=item_titles)
         ax.set_ylim(0, 1)
         ax.set_ylabel('Probability')
         ax.set_title('Probability Evolution Over Iterations')
@@ -329,11 +202,11 @@ class QuantumGrantSearcher:
         def init():
             y = []
             probabilities = probabilities_list[0]
-            for grant_index in range(len(self.grants)):
-                state_label = format(grant_index, f'0{self.num_qubits}b')
+            for item_index in range(len(self.data_items)):
+                state_label = format(item_index, f'0{self.num_qubits}b')
                 prob = probabilities.get(state_label, 0)
                 y.append(prob)
-            for bar, prob, idx in zip(bars, y, grant_indices):
+            for bar, prob, idx in zip(bars, y, item_indices):
                 bar.set_height(prob)
                 bar.set_color('green' if idx in indices_to_search else 'blue')
                 if prob > 0.01:
@@ -348,11 +221,11 @@ class QuantumGrantSearcher:
         def update(frame):
             y = []
             probabilities = probabilities_list[frame]
-            for grant_index in range(len(self.grants)):
-                state_label = format(grant_index, f'0{self.num_qubits}b')
+            for item_index in range(len(self.data_items)):
+                state_label = format(item_index, f'0{self.num_qubits}b')
                 prob = probabilities.get(state_label, 0)
                 y.append(prob)
-            for bar, prob, idx in zip(bars, y, grant_indices):
+            for bar, prob, idx in zip(bars, y, item_indices):
                 bar.set_height(prob)
                 bar.set_color('green' if idx in indices_to_search else 'blue')
                 if prob > 0.01:
@@ -453,7 +326,7 @@ class QuantumGrantSearcher:
         target_x = x[target_indices]
         target_y = y[target_indices]
         target_z = z[target_indices]
-        ax.scatter(target_x, target_y, target_z, c='red', s=100, label='Target Grants')
+        ax.scatter(target_x, target_y, target_z, c='red', s=100, label='Target Items')
 
         # Enhance visual appeal
         ax.set_title('Quasicrystal Lattice Representation of Quantum States')
@@ -531,59 +404,377 @@ class QuantumGrantSearcher:
 
         plt.show()
 
-    # Define the Inner Sensing Method
-    def inner_sensing(self, probabilities):
-        '''
-        Perform an inner sensing routine to analyze quantum information after each iteration.
-        '''
-        print("Inner Sensing: Performing remote sensing analysis on quantum information...")
-        
-        # Entropy Calculation: Measure the uncertainty in the quantum state
-        entropy = -sum(prob * np.log2(prob) for prob in probabilities.values() if prob > 0)
-        print(f"  Quantum State Entropy: {entropy:.4f} bits")
-        
-        #! Significant Probability Shifts: Identify states with high probabilities (>5%)
-        significant_states = {state: prob for state, prob in probabilities.items() if prob > 0.05}
-        if significant_states:
-            print("  Significant Probability Shifts Detected:")
-            for state, prob in significant_states.items():
-                grant_title = self.get_grant_title(state)
-                print(f"    - State {state} ({grant_title}): Probability = {prob:.4f}")
-        else:
-            print("  No significant probability shifts detected.")
-        
-        # Geographical Distribution Analysis: Analyze high-probability grants' locations
-        high_prob_grants = [self.get_grant_title(state) for state in significant_states]
-        locations = [grant.location for grant in self.grants if grant.title in high_prob_grants]
-        location_counts = {}
-        for loc in locations:
-            location_counts[loc] = location_counts.get(loc, 0) + 1
-        
-        if location_counts:
-            print("\n  Geographical Distribution of High-Probability Grants:")
-            for location, count in location_counts.items():
-                print(f"    - {location}: {count} grant(s)")
-        else:
-            print("  No high-probability grants to analyze for geographical distribution.")
-        
-        print("Inner Sensing Complete.\n")
+# Quantum Grant Searcher
+class QuantumGrantSearcher(QuantumSearcher):
+    def __init__(self, grants):
+        super().__init__(grants)
 
-    def get_grant_title(self, state_label):
+    def encode_query(self, query):
+        '''
+        Process the search query and identify matching grants.
+        '''
+        lemmatizer = WordNetLemmatizer()
+        translator = str.maketrans('', '', string.punctuation)
+        query_terms = nltk.word_tokenize(query.lower().translate(translator))
+        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
+        query_terms_set = set(lemmatized_query_terms)
+
+        matching_indices = []
+        partial_match_scores = []
+
+        for i, grant in enumerate(self.data_items):
+            grant_text = f"{grant.title} {grant.description} {grant.location}".lower()
+            grant_text = grant_text.translate(translator)
+            grant_terms = nltk.word_tokenize(grant_text)
+            lemmatized_grant_terms = [lemmatizer.lemmatize(term) for term in grant_terms]
+
+            grant_terms_set = set(lemmatized_grant_terms)
+            common_terms = query_terms_set & grant_terms_set
+            match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
+
+            if match_score == 1.0:
+                matching_indices.append(i)
+            elif match_score > 0:
+                partial_match_scores.append((i, match_score))
+
+        return matching_indices, partial_match_scores
+
+    def get_item_title(self, state_label):
         '''
         Retrieve the grant title based on the state label.
         '''
-        grant_index = int(state_label, 2)
-        if grant_index < len(self.grants):
-            return self.grants[grant_index].title
+        item_index = int(state_label, 2)
+        if item_index < len(self.data_items):
+            return self.data_items[item_index].title
         return "Unknown Grant"
+
+    def search(self, query):
+        '''
+        Perform the quantum search using the quasicrystal-inspired Grover's algorithm.
+        '''
+        matching_indices, partial_match_scores = self.encode_query(query)
+
+        if matching_indices:
+            indices_to_search = matching_indices
+            print("Exact matches found. Performing quantum search...")
+        elif partial_match_scores:
+            partial_match_scores.sort(key=lambda x: x[1], reverse=True)
+            top_matches = [index for index, score in partial_match_scores[:3]]
+            indices_to_search = top_matches
+            print("No exact matches found. Performing quantum search on top potential candidates...")
+        else:
+            print("No matching grants found.")
+            return
+
+        # Initialize quantum circuit
+        qr = QuantumRegister(self.num_qubits)
+        cr = ClassicalRegister(self.num_qubits)
+        qc = QuantumCircuit(qr, cr)
+
+        # Apply Hadamard gates to create superposition
+        qc.h(qr)
+
+        # Prepare Oracle and Diffuser
+        oracle_operator = self.create_quasi_oracle(indices_to_search)
+        diffuser_gate = self.create_quasi_diffuser()
+
+        num_iterations = 4  # Use a constant number of iterations
+        if num_iterations == 0:
+            num_iterations = 1  # Ensure at least one iteration
+
+        # Initialize the statevector
+        state = Statevector.from_label('0' * self.num_qubits)
+        state = state.evolve(qc)
+
+        # Mapping from state labels to grant titles
+        state_to_item = {}
+        for i in range(len(self.data_items)):
+            state_label = format(i, f'0{self.num_qubits}b')
+            state_to_item[state_label] = self.data_items[i].title
+
+        # Collect probabilities for plotting
+        probabilities_list = []
+        probabilities = state.probabilities_dict()
+        probabilities_list.append(probabilities)
+
+        # Apply Grover's algorithm iterations
+        for iteration in range(num_iterations):
+            # Apply Oracle
+            qc.append(oracle_operator.to_instruction(), qr)
+            state = state.evolve(oracle_operator)
+            # Apply Diffuser
+            qc.append(diffuser_gate, qr)
+            state = state.evolve(diffuser_gate)
+            # Compute probabilities
+            probabilities = state.probabilities_dict()
+            probabilities_list.append(probabilities)
+
+            # Print the probability currents
+            print(f"Iteration {iteration + 1}:")
+            for state_str in sorted(probabilities):
+                prob = probabilities[state_str]
+                item_title = state_to_item.get(state_str, None)
+                if item_title:
+                    print(f"  State {state_str} ({item_title}): Probability = {prob:.4f}")
+            print("-" * 50)
+
+            # Inner Sensing Routine
+            self.inner_sensing(probabilities)
+
+        # Measurement
+        qc.measure(qr, cr)
+
+        # Transpile and execute the circuit
+        transpiled_qc = transpile(qc, self.backend)
+        job = self.backend.run(transpiled_qc, shots=1024)
+        result = job.result()
+        counts = result.get_counts()
+
+        # Map counts to grant titles
+        counts_items = {}
+        for state_str, count in counts.items():
+            item_index = int(state_str, 2)
+            if item_index < len(self.data_items):
+                item_title = self.data_items[item_index].title
+                counts_items[item_title] = counts_items.get(item_title, 0) + count
+
+        if counts_items:
+            max_count = max(counts_items.values())
+            most_common_titles = [title for title, count in counts_items.items() if count == max_count]
+            best_item_title = most_common_titles[0]
+            for item in self.data_items:
+                if item.title == best_item_title:
+                    best_item = item
+                    break
+        else:
+            print("No valid grant found in measurement results.")
+            return
+
+        # Output the result
+        print(f"\nThe most relevant grant based on your query '{query}' is:")
+        print(f"Title: {best_item.title}")
+        print(f"Description: {best_item.description}")
+        print(f"Amount: ${best_item.amount}")
+        print(f"Location: {best_item.location}")
+
+        # If there were partial matches, list them
+        if not matching_indices and partial_match_scores:
+            print("\nOther potential candidate grants:")
+            for index, score in partial_match_scores[:3]:
+                item = self.data_items[index]
+                print(f"- Title: {item.title}, Match Score: {score:.2f}")
+
+        # Plot histogram of measurement results with grant titles
+        plot_histogram(counts_items)
+        plt.show(block=False)
+
+        # Plot probability currents with stepper functionality
+        self.plot_with_stepper(probabilities_list, state_to_item, indices_to_search)
+
+        # Plot the quasicrystal visualization connected to the search
+        self.plot_quasicrystal_with_probabilities(probabilities_list, indices_to_search)
+
+# Quantum Wikipedia Article Searcher
+class QuantumArticleSearcher(QuantumSearcher):
+    def __init__(self, query):
+        # Fetch articles based on the query
+        self.data_items = self.fetch_articles(query)
+        self.num_items = len(self.data_items)
+        if self.num_items == 0:
+            print("No articles found for the given query.")
+            sys.exit(1)
+        self.num_qubits = int(np.ceil(np.log2(self.num_items)))
+        self.backend = AerSimulator(method='statevector')
+
+    def fetch_articles(self, query):
+        '''
+        Fetch articles from Wikipedia based on the query.
+        '''
+        try:
+            search_results = wikipedia.search(query, results=20)
+            articles = []
+            for title in search_results:
+                try:
+                    page = wikipedia.page(title)
+                    articles.append(Article(title=page.title, summary=page.summary, url=page.url))
+                except (wikipedia.DisambiguationError, wikipedia.PageError):
+                    continue
+            return articles
+        except Exception as e:
+            print(f"An error occurred while fetching articles: {e}")
+            sys.exit(1)
+
+    def encode_query(self, query):
+        '''
+        Process the search query and identify matching articles.
+        '''
+        lemmatizer = WordNetLemmatizer()
+        translator = str.maketrans('', '', string.punctuation)
+        query_terms = nltk.word_tokenize(query.lower().translate(translator))
+        lemmatized_query_terms = [lemmatizer.lemmatize(term) for term in query_terms]
+        query_terms_set = set(lemmatized_query_terms)
+
+        matching_indices = []
+        partial_match_scores = []
+
+        for i, article in enumerate(self.data_items):
+            article_text = f"{article.title} {article.summary}".lower()
+            article_text = article_text.translate(translator)
+            article_terms = nltk.word_tokenize(article_text)
+            lemmatized_article_terms = [lemmatizer.lemmatize(term) for term in article_terms]
+
+            article_terms_set = set(lemmatized_article_terms)
+            common_terms = query_terms_set & article_terms_set
+            match_score = len(common_terms) / len(query_terms_set) if len(query_terms_set) > 0 else 0
+
+            if match_score == 1.0:
+                matching_indices.append(i)
+            elif match_score > 0:
+                partial_match_scores.append((i, match_score))
+
+        return matching_indices, partial_match_scores
+
+    def get_item_title(self, state_label):
+        '''
+        Retrieve the article title based on the state label.
+        '''
+        item_index = int(state_label, 2)
+        if item_index < len(self.data_items):
+            return self.data_items[item_index].title
+        return "Unknown Article"
+
+    def search(self, query):
+        '''
+        Perform the quantum search using the quasicrystal-inspired Grover's algorithm.
+        '''
+        matching_indices, partial_match_scores = self.encode_query(query)
+
+        if matching_indices:
+            indices_to_search = matching_indices
+            print("Exact matches found. Performing quantum search...")
+        elif partial_match_scores:
+            partial_match_scores.sort(key=lambda x: x[1], reverse=True)
+            top_matches = [index for index, score in partial_match_scores[:3]]
+            indices_to_search = top_matches
+            print("No exact matches found. Performing quantum search on top potential candidates...")
+        else:
+            print("No matching articles found.")
+            return
+
+        # Initialize quantum circuit
+        qr = QuantumRegister(self.num_qubits)
+        cr = ClassicalRegister(self.num_qubits)
+        qc = QuantumCircuit(qr, cr)
+
+        # Apply Hadamard gates to create superposition
+        qc.h(qr)
+
+        # Prepare Oracle and Diffuser
+        oracle_operator = self.create_quasi_oracle(indices_to_search)
+        diffuser_gate = self.create_quasi_diffuser()
+
+        num_iterations = 4  # Use a constant number of iterations
+        if num_iterations == 0:
+            num_iterations = 1  # Ensure at least one iteration
+
+        # Initialize the statevector
+        state = Statevector.from_label('0' * self.num_qubits)
+        state = state.evolve(qc)
+
+        # Mapping from state labels to article titles
+        state_to_item = {}
+        for i in range(len(self.data_items)):
+            state_label = format(i, f'0{self.num_qubits}b')
+            state_to_item[state_label] = self.data_items[i].title
+
+        # Collect probabilities for plotting
+        probabilities_list = []
+        probabilities = state.probabilities_dict()
+        probabilities_list.append(probabilities)
+
+        # Apply Grover's algorithm iterations
+        for iteration in range(num_iterations):
+            # Apply Oracle
+            qc.append(oracle_operator.to_instruction(), qr)
+            state = state.evolve(oracle_operator)
+            # Apply Diffuser
+            qc.append(diffuser_gate, qr)
+            state = state.evolve(diffuser_gate)
+            # Compute probabilities
+            probabilities = state.probabilities_dict()
+            probabilities_list.append(probabilities)
+
+            # Print the probability currents
+            print(f"Iteration {iteration + 1}:")
+            for state_str in sorted(probabilities):
+                prob = probabilities[state_str]
+                item_title = state_to_item.get(state_str, None)
+                if item_title:
+                    print(f"  State {state_str} ({item_title}): Probability = {prob:.4f}")
+            print("-" * 50)
+
+            # Inner Sensing Routine
+            self.inner_sensing(probabilities)
+
+        # Measurement
+        qc.measure(qr, cr)
+
+        # Transpile and execute the circuit
+        transpiled_qc = transpile(qc, self.backend)
+        job = self.backend.run(transpiled_qc, shots=1024)
+        result = job.result()
+        counts = result.get_counts()
+
+        # Map counts to article titles
+        counts_items = {}
+        for state_str, count in counts.items():
+            item_index = int(state_str, 2)
+            if item_index < len(self.data_items):
+                item_title = self.data_items[item_index].title
+                counts_items[item_title] = counts_items.get(item_title, 0) + count
+
+        if counts_items:
+            max_count = max(counts_items.values())
+            most_common_titles = [title for title, count in counts_items.items() if count == max_count]
+            best_item_title = most_common_titles[0]
+            for item in self.data_items:
+                if item.title == best_item_title:
+                    best_item = item
+                    break
+        else:
+            print("No valid article found in measurement results.")
+            return
+
+        # Output the result
+        print(f"\nThe most relevant article based on your query '{query}' is:")
+        print(f"Title: {best_item.title}")
+        print(f"Summary: {best_item.summary[:500]}...")  # Truncate to avoid excessive output
+        print(f"URL: {best_item.url}")
+
+        # If there were partial matches, list them
+        if not matching_indices and partial_match_scores:
+            print("\nOther potential candidate articles:")
+            for index, score in partial_match_scores[:3]:
+                item = self.data_items[index]
+                print(f"- Title: {item.title}, Match Score: {score:.2f}")
+
+        # Plot histogram of measurement results with article titles
+        plot_histogram(counts_items)
+        plt.show(block=False)
+
+        # Plot probability currents with stepper functionality
+        self.plot_with_stepper(probabilities_list, state_to_item, indices_to_search)
+
+        # Plot the quasicrystal visualization connected to the search
+        self.plot_quasicrystal_with_probabilities(probabilities_list, indices_to_search)
 
 # Main Function
 def main():
-    parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using a Quasicrystal-Inspired Algorithm')
+    parser = argparse.ArgumentParser(description='Quantum Search Tool using a Quasicrystal-Inspired Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
-                        help='Search query to find relevant grants (e.g., "renewable energy Boston")')
+                        help='Search query to find relevant grants or articles (e.g., "quantum teleportation")')
     parser.add_argument('--wiki', action='store_true',
-                        help='If set, perform a Wikipedia search for the query instead of searching grants')
+                        help='If set, perform a quantum search over Wikipedia articles')
     args = parser.parse_args()
 
     if not args.query:
@@ -591,43 +782,14 @@ def main():
         sys.exit(1)
 
     if args.wiki:
-        perform_wikipedia_search(args.query)
+        # Initialize the Quantum Article Searcher
+        searcher = QuantumArticleSearcher(args.query)
     else:
         # Initialize the Quantum Grant Searcher
         searcher = QuantumGrantSearcher(grants)
 
-        # Perform the quantum search
-        searcher.search(args.query)
-
-# Function to perform Wikipedia search
-def perform_wikipedia_search(query):
-    import wikipedia
-
-    try:
-        # Attempt to get the exact page
-        page = wikipedia.page(query)
-        print(f"\nWikipedia Page Found:\nTitle: {page.title}\nURL: {page.url}\n")
-    except wikipedia.DisambiguationError as e:
-        # If a disambiguation page is encountered, choose the first suggested option
-        print(f"Disambiguation Error: The query '{query}' may refer to multiple pages.")
-        suggested_title = e.options[0]
-        page = wikipedia.page(suggested_title)
-        print(f"\nSuggested Wikipedia Page:\nTitle: {page.title}\nURL: {page.url}\n")
-    except wikipedia.PageError:
-        # If no page matches the query, perform a search and suggest the best match
-        print(f"No exact Wikipedia page found for '{query}'. Searching for related pages...")
-        search_results = wikipedia.search(query)
-        if search_results:
-            best_match = search_results[0]
-            try:
-                page = wikipedia.page(best_match)
-                print(f"\nBest Matching Wikipedia Page:\nTitle: {page.title}\nURL: {page.url}\n")
-            except Exception as e:
-                print(f"An error occurred while fetching the page: {e}")
-        else:
-            print("No related Wikipedia pages found.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    # Perform the quantum search
+    searcher.search(args.query)
 
 if __name__ == "__main__":
     main()
