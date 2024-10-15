@@ -249,6 +249,9 @@ class QuantumGrantSearcher:
                     print(f"  State {state_str} ({grant_title}): Probability = {prob:.4f}")
             print("-" * 50)
 
+            # **Inner Sensing Routine**
+            self.inner_sensing(probabilities)
+
         # Measurement
         qc.measure(qr, cr)
 
@@ -528,22 +531,103 @@ class QuantumGrantSearcher:
 
         plt.show()
 
+    # Define the Inner Sensing Method
+    def inner_sensing(self, probabilities):
+        '''
+        Perform an inner sensing routine to analyze quantum information after each iteration.
+        '''
+        print("Inner Sensing: Performing remote sensing analysis on quantum information...")
+        
+        # Entropy Calculation: Measure the uncertainty in the quantum state
+        entropy = -sum(prob * np.log2(prob) for prob in probabilities.values() if prob > 0)
+        print(f"  Quantum State Entropy: {entropy:.4f} bits")
+        
+        #! Significant Probability Shifts: Identify states with high probabilities (>5%)
+        significant_states = {state: prob for state, prob in probabilities.items() if prob > 0.05}
+        if significant_states:
+            print("  Significant Probability Shifts Detected:")
+            for state, prob in significant_states.items():
+                grant_title = self.get_grant_title(state)
+                print(f"    - State {state} ({grant_title}): Probability = {prob:.4f}")
+        else:
+            print("  No significant probability shifts detected.")
+        
+        # Geographical Distribution Analysis: Analyze high-probability grants' locations
+        high_prob_grants = [self.get_grant_title(state) for state in significant_states]
+        locations = [grant.location for grant in self.grants if grant.title in high_prob_grants]
+        location_counts = {}
+        for loc in locations:
+            location_counts[loc] = location_counts.get(loc, 0) + 1
+        
+        if location_counts:
+            print("\n  Geographical Distribution of High-Probability Grants:")
+            for location, count in location_counts.items():
+                print(f"    - {location}: {count} grant(s)")
+        else:
+            print("  No high-probability grants to analyze for geographical distribution.")
+        
+        print("Inner Sensing Complete.\n")
+
+    def get_grant_title(self, state_label):
+        '''
+        Retrieve the grant title based on the state label.
+        '''
+        grant_index = int(state_label, 2)
+        if grant_index < len(self.grants):
+            return self.grants[grant_index].title
+        return "Unknown Grant"
+
 # Main Function
 def main():
     parser = argparse.ArgumentParser(description='Quantum Grant Search Tool using a Quasicrystal-Inspired Algorithm')
     parser.add_argument('query', type=str, nargs='?', default='',
                         help='Search query to find relevant grants (e.g., "renewable energy Boston")')
+    parser.add_argument('--wiki', action='store_true',
+                        help='If set, perform a Wikipedia search for the query instead of searching grants')
     args = parser.parse_args()
 
     if not args.query:
         print("Please provide a search query.")
         sys.exit(1)
 
-    # Initialize the Quantum Grant Searcher
-    searcher = QuantumGrantSearcher(grants)
+    if args.wiki:
+        perform_wikipedia_search(args.query)
+    else:
+        # Initialize the Quantum Grant Searcher
+        searcher = QuantumGrantSearcher(grants)
 
-    # Perform the quantum search
-    searcher.search(args.query)
+        # Perform the quantum search
+        searcher.search(args.query)
+
+# Function to perform Wikipedia search
+def perform_wikipedia_search(query):
+    import wikipedia
+
+    try:
+        # Attempt to get the exact page
+        page = wikipedia.page(query)
+        print(f"\nWikipedia Page Found:\nTitle: {page.title}\nURL: {page.url}\n")
+    except wikipedia.DisambiguationError as e:
+        # If a disambiguation page is encountered, choose the first suggested option
+        print(f"Disambiguation Error: The query '{query}' may refer to multiple pages.")
+        suggested_title = e.options[0]
+        page = wikipedia.page(suggested_title)
+        print(f"\nSuggested Wikipedia Page:\nTitle: {page.title}\nURL: {page.url}\n")
+    except wikipedia.PageError:
+        # If no page matches the query, perform a search and suggest the best match
+        print(f"No exact Wikipedia page found for '{query}'. Searching for related pages...")
+        search_results = wikipedia.search(query)
+        if search_results:
+            best_match = search_results[0]
+            try:
+                page = wikipedia.page(best_match)
+                print(f"\nBest Matching Wikipedia Page:\nTitle: {page.title}\nURL: {page.url}\n")
+            except Exception as e:
+                print(f"An error occurred while fetching the page: {e}")
+        else:
+            print("No related Wikipedia pages found.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
     main()
