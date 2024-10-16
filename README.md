@@ -76,6 +76,7 @@ Planned Stages (10/16):
   5. Is quantum incomplete?
 
 Einstein:
+! For a given bound trajectory that passes an infinite number of times through each small neighborhood 'dr' in the clasically allowed region of coordinate space and observes..
 
   1. Two scenarios:
     a) An orbit of type (a) passes through 'dr' an infinite number of times with only a finite number of different momentum directions
@@ -86,4 +87,5 @@ Einstein:
     ii) However, classical statistical mechanics deals essentially only with type (b); only in this case is the microcanonical ensemble of one system equivalent to the time ensemble
 
 "The dynamics of systems with fewer constants of motion than degrees of freedom are funda- mentally different from those of systems with at least as many constants as degrees of freedom. In modern termi- nology, the former type of system is nonintegrable and the latter integrable"
+
  
