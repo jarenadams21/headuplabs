@@ -88,4 +88,30 @@ Einstein:
 
 "The dynamics of systems with fewer constants of motion than degrees of freedom are funda- mentally different from those of systems with at least as many constants as degrees of freedom. In modern termi- nology, the former type of system is nonintegrable and the latter integrable"
 
+GOALS:
+
+ 1. Solve the helium atom
+ 2. Consider..
+   2.1) Inverse-square law
+   2.2) Vortex
+   2.3) Event Horizons & Black Holes as an example
+   2.4) Existence Theorem
+   2.5) Horshoe Orbits
+   2.6) Rotating reference frames (with earth's surface as a working example)
+   2.7) Azimuth
+   2.8) Quantum Chaos
+   2.9) Quasi-realism
+   2.10) Three-body problem
+   2.11) Atomic Physics & Berkeley
+   2.12) Einstein & Refinement, Not Disprovement
+   2.13) Bifurcation theory
+   2.14) Torus
+   2.15) Anisotropy
+   2.16) Time evolution
+   2.17) Quantum defect
+   2.18) Tidal locking
+
+## Links
+https://boulderschool.yale.edu/sites/default/files/files/Einstein_chaos.pdf ; Einstein
+https://www.scribd.com/document/384856203/Rene-Cori-Daniel-Lascar-Donald-H-Pelletier-Mathematical-Logic-a-Course-With-Exercises-Part-II-Recursion-Theory-Godel-s-Theorems-Set-Theory-M ; Godel
  
