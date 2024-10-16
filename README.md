@@ -74,3 +74,16 @@ Planned Stages (10/16):
   3. Insights into how each particle influences different types of searches based on results in 1 and 2
   4. Does this out perform precision? Use mature example and compare against leading method
   5. Is quantum incomplete?
+
+Einstein:
+
+  1. Two scenarios:
+    a) An orbit of type (a) passes through 'dr' an infinite number of times with only a finite number of different momentum directions
+    b) An orbit of type (b) passes through 'dr' an infinite number of times with an infinite number of different momentum directions
+
+  2. The Idea:
+    i) One notices immediately that type (b) motion excludes quantum formulation
+    ii) However, classical statistical mechanics deals essentially only with type (b); only in this case is the microcanonical ensemble of one system equivalent to the time ensemble
+
+"The dynamics of systems with fewer constants of motion than degrees of freedom are funda- mentally different from those of systems with at least as many constants as degrees of freedom. In modern termi- nology, the former type of system is nonintegrable and the latter integrable"
+ 
