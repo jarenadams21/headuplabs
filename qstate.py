@@ -18,7 +18,7 @@ from matplotlib.widgets import Button
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
-import wikipedia
+from qiskit.circuit.library import UnitaryGate  # Import UnitaryGate for custom gates
 
 # Ensure NLTK resources are downloaded
 nltk.download('punkt', quiet=True)
@@ -33,12 +33,6 @@ class Grant:
         self.amount = amount
         self.location = location
 
-class Article:
-    def __init__(self, title, summary, url):
-        self.title = title
-        self.summary = summary
-        self.url = url
-
 # Sample Grant Data
 grants = [
     Grant("Climate Action Grant", "Funding for projects reducing carbon emissions.", 50000, "Boston"),
@@ -50,11 +44,6 @@ grants = [
     Grant("Recycling Innovation Grant", "Grants for innovative recycling technologies.", 35000, "Portland"),
     Grant("Sustainable Agriculture Grant", "Funding for sustainable farming practices.", 60000, "Austin"),
     Grant("Carbon Neutrality Grant", "Support for achieving carbon neutrality in organizations.", 70000, "Boston"),
-    Grant("Little Onion Restaurant Grant", "Support for small businesses and restaurants in California and Nevada.", 5000, "Santa Ana"),
-    Grant("Mike's Grant", "I am legit but also a scam, but I'll give you more! Give me business, now!", 10000, "Orange Grove"),
-    Grant("Subnautic Travelers", "All sea-men and voyagers of the blue alike!", 100000, "Highwaters, LN"),
-    Grant("A Time Ago", "Subsidizing Egyptian student housing and groceries", 3500, "Cairo, Egypt"),
-    # Additional Grants to reach 50 items
     Grant("Healthcare Innovation Grant", "Funding for innovative healthcare solutions.", 80000, "Chicago"),
     Grant("Education Advancement Grant", "Support for educational programs and research.", 50000, "Boston"),
     Grant("Artistic Excellence Grant", "Grants for artists and cultural projects.", 20000, "New York"),
@@ -140,6 +129,10 @@ class QuantumSearcher:
         # Initialize particles
         self.particles = self.initialize_particles()
 
+        # Core Time Backbone
+        self.global_time = 0
+        self.time_step = 0.1  # Define a suitable time step for synchronization
+
     def initialize_particles(self):
         particles = []
 
@@ -184,9 +177,6 @@ class QuantumSearcher:
 
         particles.extend(antiparticles)
 
-        # Limit to 50 particles
-        particles = particles[:50]
-
         # Ensure we have at least as many particles as quantum states
         required_particles = 2 ** self.num_qubits
         while len(particles) < required_particles:
@@ -220,7 +210,7 @@ class QuantumSearcher:
         Create an oracle that applies phase shifts based on particle properties.
         '''
         if not indices:
-            return Operator(np.identity(2 ** self.num_qubits))
+            return UnitaryGate(np.identity(2 ** self.num_qubits), label='Identity')
 
         # Initialize phase shifts
         phase_shifts = np.ones(2 ** self.num_qubits, dtype=complex)
@@ -248,8 +238,9 @@ class QuantumSearcher:
                 phase_shifts[index] = 1
 
         oracle_matrix = np.diag(phase_shifts)
-        oracle_operator = Operator(oracle_matrix)
-        return oracle_operator
+        # Convert the oracle_matrix into a gate with a name
+        oracle_gate = UnitaryGate(oracle_matrix, label='Particle-Oracle')
+        return oracle_gate
 
     def calculate_boson_effect(self):
         '''
@@ -284,22 +275,27 @@ class QuantumSearcher:
 
         diffuser.x(range(self.num_qubits))
         diffuser.h(range(self.num_qubits))
-        diffuser_gate = diffuser.to_gate()
-        diffuser_gate.label = "Particle-Diffuser"
+        diffuser_gate = diffuser.to_gate(label='Particle-Diffuser')
         return diffuser_gate
 
     def construct_hamiltonian(self):
         '''
-        Construct the Hamiltonian operator representing the system's energy.
+        Construct the Hamiltonian operator representing the system's energy, including collision-induced transitions.
         '''
-        # Initialize Hamiltonian as zero matrix
         dim = 2 ** self.num_qubits
         H = np.zeros((dim, dim), dtype=complex)
 
         # Loop over all states and assign energy levels based on particles
-        for index in range(dim):
-            state_energy = self.calculate_state_energy(index)
-            H[index, index] = state_energy
+        for i in range(dim):
+            for j in range(dim):
+                if i == j:
+                    # Diagonal elements: state energy
+                    state_energy = self.calculate_state_energy(i)
+                    H[i, i] = state_energy
+                else:
+                    # Off-diagonal elements: collision-induced transitions
+                    collision_strength = self.calculate_collision_strength(i, j)
+                    H[i, j] = collision_strength
 
         # Convert to operator
         hamiltonian_operator = Operator(H)
@@ -311,20 +307,54 @@ class QuantumSearcher:
         '''
         particle = self.particles[index % len(self.particles)]
         if isinstance(particle, Quark):
-            # Energy based on flavor
+            # Energy based on flavor (in MeV)
             flavor_energies = {'up': 2.2, 'down': 4.7, 'charm': 1275, 'strange': 96, 'top': 173100, 'bottom': 4180}
             energy = flavor_energies.get(particle.flavor, 0)
         elif isinstance(particle, Lepton):
-            # Energy based on flavor
+            # Energy based on flavor (in MeV)
             flavor_energies = {'electron': 0.511, 'muon': 105.7, 'tau': 1777, 'electron neutrino': 0.0000022, 'muon neutrino': 0.17, 'tau neutrino': 18.2}
             energy = flavor_energies.get(particle.flavor, 0)
         elif isinstance(particle, Boson):
-            # Energy based on force type
-            force_energies = {'electromagnetic': 0, 'weak': 80.379, 'strong': 0, 'gravitational': 0, 'mass': 125.1}
+            # Energy based on force type (in MeV)
+            force_energies = {'electromagnetic': 0, 'weak': 80379, 'strong': 0, 'gravitational': 0, 'mass': 125100}
             energy = force_energies.get(particle.force_type, 0)
         else:
             energy = 0
         return energy
+
+    def calculate_collision_strength(self, index_i, index_j):
+        '''
+        Calculate the strength of collision-induced transitions between two states.
+        '''
+        particle_i = self.particles[index_i % len(self.particles)]
+        particle_j = self.particles[index_j % len(self.particles)]
+
+        # Use realistic interaction strengths based on particle physics
+        interaction_strength = 0
+
+        # Nuclear interaction parameters
+        if isinstance(particle_i, Quark) and isinstance(particle_j, Quark):
+            # Quark-quark interactions (strong force)
+            interaction_strength += 1.0  # Arbitrary strong interaction strength
+        elif isinstance(particle_i, Lepton) and isinstance(particle_j, Lepton):
+            # Lepton-lepton interactions (weak force)
+            interaction_strength += 0.1  # Weaker than strong force
+        elif isinstance(particle_i, Boson) or isinstance(particle_j, Boson):
+            # Interactions involving bosons (mediators)
+            interaction_strength += 0.5  # Intermediate strength
+        else:
+            # Default minimal interaction
+            interaction_strength += 0.01
+
+        # Include resonance effects (simplified)
+        delta_energy = abs(self.calculate_state_energy(index_i) - self.calculate_state_energy(index_j))
+        resonance_width = 10  # Arbitrary resonance width in MeV
+        resonance_factor = np.exp(- (delta_energy ** 2) / (2 * resonance_width ** 2))
+
+        # Total collision strength
+        total_strength = interaction_strength * resonance_factor
+
+        return total_strength
 
     def inner_sensing(self, probabilities, iteration):
         '''
@@ -628,9 +658,7 @@ class QuantumSearcher:
         plt.tight_layout()
         plt.show()
 
-    # Quantum Searcher continues...
-
-    def create_natural_teleportation_operator(self, time_step):
+    def create_natural_teleportation_operator(self):
         '''
         Create an operator that naturally evolves the system by teleporting particles based on their interactions over time.
         '''
@@ -649,27 +677,29 @@ class QuantumSearcher:
                     interaction_matrix[i, j] = interaction
 
         # Exponentiate the interaction matrix to simulate evolution over time
-        time_evolution_operator = expm(-1j * interaction_matrix * time_step)
+        time_evolution_operator = expm(-1j * interaction_matrix * self.time_step)
 
-        return Operator(time_evolution_operator)
+        # Convert to UnitaryGate
+        teleportation_gate = UnitaryGate(time_evolution_operator, label='Natural-Teleportation')
+        return teleportation_gate
 
     def calculate_interaction_strength(self, particle_i, particle_j):
         '''
         Calculate the interaction strength between two particles.
         '''
-        # Basic interaction based on particle type and properties
+        # Realistic interaction based on particle properties
         strength = 0
         if type(particle_i) == type(particle_j):
-            strength += 0.1  # Similar particles interact more
+            strength += 1.0  # Similar particles interact more strongly
         if isinstance(particle_i, Quark) and isinstance(particle_j, Quark):
             if particle_i.color_charge == particle_j.color_charge:
-                strength += 0.05
+                strength += 2.0  # Strong force is stronger for same color charge
         if isinstance(particle_i, Lepton) and isinstance(particle_j, Lepton):
             if particle_i.spin == particle_j.spin:
-                strength += 0.05
+                strength += 0.5  # Leptons with same spin have higher interaction
         if isinstance(particle_i, Boson) and isinstance(particle_j, Boson):
             if particle_i.force_type == particle_j.force_type:
-                strength += 0.05
+                strength += 0.8  # Bosons mediating same force interact
         return strength
 
 # Quantum Grant Searcher
@@ -743,7 +773,7 @@ class QuantumGrantSearcher(QuantumSearcher):
         qc.h(qr)
 
         # Prepare Oracle and Diffuser
-        oracle_operator = self.create_particle_oracle(indices_to_search)
+        oracle_gate = self.create_particle_oracle(indices_to_search)
         diffuser_gate = self.create_particle_diffuser()
 
         num_iterations = int(np.floor(np.pi / 4 * np.sqrt(2 ** self.num_qubits / len(indices_to_search))))
@@ -777,20 +807,27 @@ class QuantumGrantSearcher(QuantumSearcher):
         hamiltonian = self.construct_hamiltonian()
 
         # Time evolution parameters
-        time_steps = np.linspace(0, 1, num_iterations)
+        total_time = num_iterations * self.time_step
 
         # Apply Grover's algorithm iterations
         for iteration in range(num_iterations):
+            # Update global time
+            self.global_time += self.time_step
+
             # Apply Oracle
-            qc.append(oracle_operator.to_instruction(), qr)
-            state = state.evolve(oracle_operator)
+            qc.append(oracle_gate, qr)
+            state = state.evolve(oracle_gate)
 
             # Quantum Teleportation through natural evolution
-            teleport_operator = self.create_natural_teleportation_operator(time_steps[iteration])
-            state = state.evolve(teleport_operator)
+            teleport_gate = self.create_natural_teleportation_operator()
+            qc.append(teleport_gate, qr)
+            state = state.evolve(teleport_gate)
 
             # Apply Hamiltonian evolution
-            state = state.evolve(hamiltonian)
+            time_evolution_operator = expm(-1j * hamiltonian.data * self.time_step)
+            hamiltonian_gate = UnitaryGate(time_evolution_operator, label='Hamiltonian-Evolution')
+            qc.append(hamiltonian_gate, qr)
+            state = state.evolve(hamiltonian_gate)
 
             # Apply Diffuser
             qc.append(diffuser_gate, qr)
@@ -822,8 +859,10 @@ class QuantumGrantSearcher(QuantumSearcher):
         # Measurement
         qc.measure(qr, cr)
 
-        # Transpile and execute the circuit
+        # Transpile the circuit after adding measurement
         transpiled_qc = transpile(qc, self.backend)
+
+        # Execute the circuit
         job = self.backend.run(transpiled_qc, shots=1024)
         result = job.result()
         counts = result.get_counts()
