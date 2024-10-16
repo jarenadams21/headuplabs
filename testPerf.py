@@ -6,7 +6,6 @@ import nltk
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from sklearn.preprocessing import MultiLabelBinarizer
 
 # Ensure NLTK resources are downloaded
@@ -78,56 +77,90 @@ def quantum_search(quantum_searcher, query):
 
 quantum_indices = quantum_search(quantum_searcher, query)
 
-# Define relevant grants for the query
-# For testing purposes, let's assume that the relevant grants are known
-# In a real scenario, you might have a labeled dataset or ground truth
-relevant_indices = [58]  # Assuming "Quantum Computing Grant" is the relevant one
+# Define relevant grants for the query (expanded to include more relevant grants)
+relevant_indices = [58, 18, 10, 35]  # Indices of relevant grants
 
-# Prepare binary relevance vectors
-num_items = len(grants)
-mlb = MultiLabelBinarizer(classes=range(num_items))
+# Evaluation Metrics Implementation
+def calculate_precision_at_k(retrieved_indices, relevant_indices, k):
+    retrieved_k = retrieved_indices[:k]
+    relevant_set = set(relevant_indices)
+    retrieved_set = set(retrieved_k)
+    num_relevant = len(retrieved_set & relevant_set)
+    precision_at_k = num_relevant / k
+    return precision_at_k
 
-# Baseline search results
-baseline_relevance = mlb.fit_transform([baseline_indices])[0]
+def calculate_average_precision(retrieved_indices, relevant_indices):
+    relevant_set = set(relevant_indices)
+    num_relevant = 0
+    sum_precision = 0.0
+    for i, idx in enumerate(retrieved_indices, start=1):
+        if idx in relevant_set:
+            num_relevant += 1
+            precision = num_relevant / i
+            sum_precision += precision
+    if num_relevant == 0:
+        return 0.0
+    average_precision = sum_precision / min(len(relevant_set), num_relevant)
+    return average_precision
 
-# Quantum Search results
-quantum_relevance = mlb.fit_transform([quantum_indices])[0]
+# Implement NDCG metric
+def calculate_dcg(relevance_scores):
+    dcg = 0.0
+    for i, rel in enumerate(relevance_scores, start=1):
+        dcg += (2 ** rel - 1) / np.log2(i + 1)
+    return dcg
 
-# Ground truth relevance
-true_relevance = mlb.fit_transform([relevant_indices])[0]
+def calculate_ndcg(retrieved_indices, relevance_dict, k):
+    relevance_scores = [relevance_dict.get(idx, 0) for idx in retrieved_indices[:k]]
+    dcg = calculate_dcg(relevance_scores)
+    # Ideal DCG (IDCG)
+    ideal_relevance_scores = sorted(relevance_dict.values(), reverse=True)[:k]
+    idcg = calculate_dcg(ideal_relevance_scores)
+    if idcg == 0:
+        return 0.0
+    ndcg = dcg / idcg
+    return ndcg
 
-# Calculate metrics for Baseline Search
-baseline_precision = precision_score(true_relevance, baseline_relevance)
-baseline_recall = recall_score(true_relevance, baseline_relevance)
-baseline_f1 = f1_score(true_relevance, baseline_relevance)
-baseline_accuracy = accuracy_score(true_relevance, baseline_relevance)
+# Set K for Precision@K
+K = 5
 
-# Calculate metrics for Quantum Search
-quantum_precision = precision_score(true_relevance, quantum_relevance)
-quantum_recall = recall_score(true_relevance, quantum_relevance)
-quantum_f1 = f1_score(true_relevance, quantum_relevance)
-quantum_accuracy = accuracy_score(true_relevance, quantum_relevance)
+# Define relevance scores (graded relevance)
+relevance_dict = {
+    58: 2,  # Quantum Computing Grant (Highly Relevant)
+    18: 1,  # AI Research Grant (Somewhat Relevant)
+    10: 1,  # Education Advancement Grant (Somewhat Relevant)
+    35: 1,  # Educational Technology Grant (Somewhat Relevant)
+}
+
+# Baseline Metrics
+baseline_precision_at_k = calculate_precision_at_k(baseline_indices, relevant_indices, K)
+baseline_average_precision = calculate_average_precision(baseline_indices, relevant_indices)
+baseline_ndcg = calculate_ndcg(baseline_indices, relevance_dict, K)
+
+# Quantum Search Metrics
+quantum_precision_at_k = calculate_precision_at_k(quantum_indices, relevant_indices, K)
+quantum_average_precision = calculate_average_precision(quantum_indices, relevant_indices)
+quantum_ndcg = calculate_ndcg(quantum_indices, relevance_dict, K)
 
 # Print comparison
 print("\nBaseline Search Metrics:")
-print(f"Precision: {baseline_precision:.4f}")
-print(f"Recall: {baseline_recall:.4f}")
-print(f"F1-Score: {baseline_f1:.4f}")
-print(f"Accuracy: {baseline_accuracy:.4f}")
+print(f"Precision@{K}: {baseline_precision_at_k:.4f}")
+print(f"Average Precision (AP): {baseline_average_precision:.4f}")
+print(f"NDCG@{K}: {baseline_ndcg:.4f}")
 
 print("\nQuantum Search Metrics:")
-print(f"Precision: {quantum_precision:.4f}")
-print(f"Recall: {quantum_recall:.4f}")
-print(f"F1-Score: {quantum_f1:.4f}")
-print(f"Accuracy: {quantum_accuracy:.4f}")
+print(f"Precision@{K}: {quantum_precision_at_k:.4f}")
+print(f"Average Precision (AP): {quantum_average_precision:.4f}")
+print(f"NDCG@{K}: {quantum_ndcg:.4f}")
 
 # Optionally, print top results from both searches
 print("\nTop results from Baseline Search:")
-for idx in baseline_indices[:5]:
+for idx in baseline_indices[:K]:
     grant = grants[idx]
-    print(f"Title: {grant.title}, Similarity Score: {baseline_similarities[idx]:.4f}")
+    similarity = baseline_similarities[idx]
+    print(f"Title: {grant.title}, Similarity Score: {similarity:.4f}")
 
 print("\nTop results from Quantum Search:")
-for idx in quantum_indices[:5]:
+for idx in quantum_indices[:K]:
     grant = grants[idx]
     print(f"Title: {grant.title}")

@@ -66,3 +66,11 @@ Imagine Quantum Grant Search with Particles as assembling a specialized team to 
 	•	Bosons serve as the coordinators, ensuring that the generalists and specialists communicate effectively, sharing information to refine the search results.
 
 This teamwork ensures that your search is both comprehensive and precise, quickly leading you to the most suitable grant opportunities.
+
+Planned Stages (10/16):
+
+  1. Examine the partioning of quarks, bosons, and leptons and their behavioral influence on the system more clearly
+  2. Testing different configurations/delegation of tasks/focus of particles over the same data^
+  3. Insights into how each particle influences different types of searches based on results in 1 and 2
+  4. Does this out perform precision? Use mature example and compare against leading method
+  5. Is quantum incomplete?
