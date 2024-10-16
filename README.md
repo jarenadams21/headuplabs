@@ -114,4 +114,6 @@ GOALS:
 ## Links
 https://boulderschool.yale.edu/sites/default/files/files/Einstein_chaos.pdf ; Einstein
 https://www.scribd.com/document/384856203/Rene-Cori-Daniel-Lascar-Donald-H-Pelletier-Mathematical-Logic-a-Course-With-Exercises-Part-II-Recursion-Theory-Godel-s-Theorems-Set-Theory-M ; Godel
- 
+
+## Einstein Expanded
+If there exist fewer than d [constants of mo- tion], as is the case, for example, according to Poincaré in the three-body problem, then the pi are not expressible by the qi and the quan- tum condition of Sommerfeld–Epstein fails also in the slightly generalized form that has been given here. 
