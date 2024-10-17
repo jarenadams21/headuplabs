@@ -959,22 +959,179 @@ class QuantumGrantSearcher(QuantumSearcher):
         # Plot the spike graph of particle probabilities
         self.plot_spike_graph(particle_probabilities)
 
+# Constants
+Z = 2  # Atomic number for helium
+e_charge = 1.60217662e-19  # Elementary charge (Coulombs)
+epsilon_0 = 8.85418782e-12  # Vacuum permittivity (F/m)
+hbar = 1.0545718e-34  # Reduced Planck constant (J·s)
+m_e = 9.10938356e-31  # Electron mass (kg)
+a_0 = 4 * np.pi * epsilon_0 * hbar**2 / (m_e * e_charge**2)  # Bohr radius (m)
+
+# Updated Quantum Helium Searcher
+class QuantumHeliumSearcher:
+    def __init__(self):
+        # Grid parameters for spatial discretization
+        self.num_points = 100  # Number of grid points per dimension
+        self.grid_range = 10 * a_0  # Range of the grid in meters
+        self.x = np.linspace(-self.grid_range, self.grid_range, self.num_points)
+        self.y = np.linspace(-self.grid_range, self.grid_range, self.num_points)
+        self.z = np.linspace(-self.grid_range, self.grid_range, self.num_points)
+        self.X, self.Y, self.Z = np.meshgrid(self.x, self.y, self.z, indexing='ij')
+
+        # Compute radial distances
+        self.r1 = np.sqrt(self.X**2 + self.Y**2 + self.Z**2)
+        self.r2 = np.sqrt(self.X**2 + self.Y**2 + self.Z**2)  # Symmetric for helium
+
+        # Variables to store results
+        self.psi_values = None
+        self.energy = None
+
+    def psi_trial(self, alpha):
+        """
+        Trial wave function with variational parameter alpha.
+        This function includes electron-electron correlation.
+        """
+        r1 = self.r1
+        r2 = self.r2
+        r12 = np.sqrt((self.X - self.X)**2 + (self.Y - self.Y)**2 + (self.Z - self.Z)**2) + 1e-10  # Avoid division by zero
+
+        # Hylleraas-type trial wave function
+        psi = np.exp(-alpha * (r1 + r2)) * np.exp(r12 / (2 * (1 + alpha * r12)))
+        return psi
+
+    def hamiltonian_expectation(self, psi):
+        """
+        Compute the expectation value of the Hamiltonian using the trial wave function psi.
+        """
+        # Kinetic energy term (Laplacian)
+        laplacian = (
+            np.gradient(np.gradient(psi, self.x, axis=0), self.x, axis=0) +
+            np.gradient(np.gradient(psi, self.y, axis=1), self.y, axis=1) +
+            np.gradient(np.gradient(psi, self.z, axis=2), self.z, axis=2)
+        )
+
+        kinetic_energy = - (hbar**2 / (2 * m_e)) * laplacian
+
+        # Potential energy terms
+        V_nucleus = - (Z * e_charge**2) / (4 * np.pi * epsilon_0) * (1 / self.r1 + 1 / self.r2)
+        V_ee = (e_charge**2) / (4 * np.pi * epsilon_0) * (1 / (np.abs(self.r1 - self.r2) + 1e-10))  # Electron-electron repulsion
+
+        potential_energy = V_nucleus + V_ee
+
+        # Total energy density
+        energy_density = np.conj(psi) * (kinetic_energy + potential_energy * psi)
+
+        # Integrate over all space to get expectation value
+        energy = np.trapz(np.trapz(np.trapz(energy_density, self.x), self.y), self.z)
+        normalization = np.trapz(np.trapz(np.trapz(np.abs(psi)**2, self.x), self.y), self.z)
+        expectation_value = energy / normalization
+        return expectation_value
+
+    def variational_search(self):
+        """
+        Perform a variational search to find the optimal alpha that minimizes the energy.
+        """
+        alpha_values = np.linspace(0.5 / a_0, 2.0 / a_0, 20)  # Range of alpha values
+        energies = []
+
+        for alpha in alpha_values:
+            psi = self.psi_trial(alpha)
+            energy = self.hamiltonian_expectation(psi)
+            energies.append(energy)
+            print(f"Alpha: {alpha * a_0:.4f}, Energy: {energy / e_charge:.4f} eV")
+
+        # Find the alpha with the minimum energy
+        min_energy = min(energies)
+        optimal_alpha = alpha_values[np.argmin(energies)]
+
+        # Store the results
+        self.energy = min_energy
+        self.psi_values = self.psi_trial(optimal_alpha)
+        print(f"\nOptimal alpha: {optimal_alpha * a_0:.4f}")
+        print(f"Minimum energy: {min_energy / e_charge:.4f} eV")
+
+    def plot_probability_density(self):
+        """
+        Plot the probability density of the electrons.
+        """
+        # Compute the probability density
+        prob_density = np.abs(self.psi_values)**2
+        # Normalize the probability density
+        normalization = np.trapz(np.trapz(np.trapz(prob_density, self.x), self.y), self.z)
+        prob_density /= normalization
+
+        # Plot a slice of the probability density at z=0
+        idx_z = self.num_points // 2  # Middle index for z
+        plt.figure(figsize=(8, 6))
+        plt.contourf(self.X[:, :, idx_z], self.Y[:, :, idx_z], prob_density[:, :, idx_z], levels=50, cmap='viridis')
+        plt.colorbar(label='Probability Density')
+        plt.title('Probability Density Slice at z=0')
+        plt.xlabel('x (m)')
+        plt.ylabel('y (m)')
+        plt.show()
+
+    def compare_with_expected(self):
+        """
+        Compare the calculated probability density with the expected one.
+        """
+        # Expected probability density using independent electron approximation
+        r = np.sqrt(self.X**2 + self.Y**2 + self.Z**2)
+        psi_expected = (Z / (np.pi * a_0**3))**0.5 * np.exp(-Z * r / a_0)
+        prob_density_expected = np.abs(psi_expected)**2
+        # Normalize
+        normalization_expected = np.trapz(np.trapz(np.trapz(prob_density_expected, self.x), self.y), self.z)
+        prob_density_expected /= normalization_expected
+
+        # Calculated probability density
+        prob_density_calculated = np.abs(self.psi_values)**2
+        normalization_calculated = np.trapz(np.trapz(np.trapz(prob_density_calculated, self.x), self.y), self.z)
+        prob_density_calculated /= normalization_calculated
+
+        # Compute the difference
+        difference = prob_density_calculated - prob_density_expected
+
+        # Plot the difference at z=0
+        idx_z = self.num_points // 2
+        plt.figure(figsize=(8, 6))
+        plt.contourf(self.X[:, :, idx_z], self.Y[:, :, idx_z], difference[:, :, idx_z], levels=50, cmap='coolwarm')
+        plt.colorbar(label='Difference in Probability Density')
+        plt.title('Difference between Calculated and Expected Probability Density at z=0')
+        plt.xlabel('x (m)')
+        plt.ylabel('y (m)')
+        plt.show()
+
+    def search(self):
+        """
+        Perform the variational search and plot the results.
+        """
+        self.variational_search()
+        self.plot_probability_density()
+        self.compare_with_expected()
+
 # Main Function
 def main():
-    parser = argparse.ArgumentParser(description='Quantum Grant Search Tool with Standard Model Particles')
+    parser = argparse.ArgumentParser(description='Quantum Search Tool with Standard Model Particles')
     parser.add_argument('query', type=str, nargs='?', default='',
                         help='Search query to find relevant grants (e.g., "renewable energy projects in Boston")')
+    parser.add_argument('--helium', action='store_true', help='Run the helium atom wave function search')
     args = parser.parse_args()
 
-    if not args.query:
-        print("Please provide a search query.")
+    if args.helium:
+        # Initialize the Quantum Helium Searcher
+        searcher = QuantumHeliumSearcher()
+        # Perform the helium atom wave function search
+        searcher.search()
+    elif args.query:
+        if not args.query:
+            print("Please provide a search query.")
+            sys.exit(1)
+        # Initialize the Quantum Grant Searcher
+        searcher = QuantumGrantSearcher(grants)
+        # Perform the quantum grant search
+        searcher.search(args.query)
+    else:
+        print("Please provide a search query or use the --helium option.")
         sys.exit(1)
-
-    # Initialize the Quantum Grant Searcher
-    searcher = QuantumGrantSearcher(grants)
-
-    # Perform the quantum search
-    searcher.search(args.query)
 
 if __name__ == "__main__":
     main()
