@@ -303,7 +303,8 @@ class QuantumSearcher:
 
     def calculate_state_energy(self, index):
         '''
-        Calculate the energy of a quantum state based on associated particles.
+        Calculate the energy of a quantum state based on associated particles,
+        with an added chaotic term to introduce deterministic chaos.
         '''
         particle = self.particles[index % len(self.particles)]
         if isinstance(particle, Quark):
@@ -320,6 +321,17 @@ class QuantumSearcher:
             energy = force_energies.get(particle.force_type, 0)
         else:
             energy = 0
+
+        # Introduce a chaotic function using the logistic map
+        r = 3.8494344  # Parameter in the chaotic regime
+        x_n = (index + 1) / (2 ** self.num_qubits + 1)  # Initial x_n between 0 and 1
+        for _ in range(12):  # Iterate the logistic map several times
+            x_n = r * x_n * (1 - x_n)
+        chaotic_term = x_n
+
+        # Add the chaotic term to the energy
+        energy += chaotic_term
+
         return energy
 
     def calculate_collision_strength(self, index_i, index_j):
