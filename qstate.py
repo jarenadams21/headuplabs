@@ -972,7 +972,7 @@ class QuantumHeliumSearcher:
     def __init__(self):
         # Grid parameters for spatial discretization
         self.num_points = 100  # Number of grid points per dimension
-        self.grid_range = 10 * a_0  # Range of the grid in meters
+        self.grid_range = 1000 * a_0  # Range of the grid in meters
         self.x = np.linspace(-self.grid_range, self.grid_range, self.num_points)
         self.y = np.linspace(-self.grid_range, self.grid_range, self.num_points)
         self.z = np.linspace(-self.grid_range, self.grid_range, self.num_points)
