@@ -15,7 +15,6 @@ from qiskit_aer import AerSimulator
 from qiskit.visualization import plot_histogram
 from qiskit.quantum_info import Statevector, Operator
 from matplotlib.widgets import Button
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
 from qiskit.circuit.library import UnitaryGate  # Import UnitaryGate for custom gates
@@ -110,7 +109,7 @@ class Quark(Particle):
 class Lepton(Particle):
     def __init__(self, name, flavor, spin):
         super().__init__(name)
-        self.flavor = flavor  # 'electron', 'muon', 'tau', neutrinos
+        self.flavor = flavor  # 'electron', 'muon', 'tau', 'electron neutrino', 'muon neutrino', 'tau neutrino'
         self.spin = spin  # '+1/2', '-1/2'
 
 class Boson(Particle):
@@ -146,7 +145,7 @@ class QuantumSearcher:
             {'name': 'W-', 'force_type': 'weak'},
             {'name': 'Z', 'force_type': 'weak'},
             {'name': 'Higgs', 'force_type': 'mass'},
-            {'name': 'Graviton', 'force_type': 'gravitational'},
+            {'name': 'Graviton', 'force_type': 'gravitational'},  # Hypothetical
         ]
 
         colors = ['red', 'green', 'blue']
@@ -166,13 +165,12 @@ class QuantumSearcher:
         for boson in bosons:
             particles.append(Boson(boson['name'], boson['force_type']))
 
-        # Add antiparticles (quarks and leptons)
-        # For simplicity, we only add antiparticles for quarks and charged leptons
+        # Add antiparticles for quarks and leptons
         antiparticles = []
         for particle in particles:
             if isinstance(particle, Quark):
                 antiparticles.append(Quark(f'Anti-{particle.name}', particle.flavor, particle.color_charge))
-            elif isinstance(particle, Lepton) and 'neutrino' not in particle.flavor:
+            elif isinstance(particle, Lepton):
                 antiparticles.append(Lepton(f'Anti-{particle.name}', particle.flavor, particle.spin))
 
         particles.extend(antiparticles)
@@ -280,7 +278,7 @@ class QuantumSearcher:
 
     def construct_hamiltonian(self):
         '''
-        Construct the Hamiltonian operator representing the system's energy, including collision-induced transitions.
+        Construct the Hamiltonian operator representing the system's energy, including interactions.
         '''
         dim = 2 ** self.num_qubits
         H = np.zeros((dim, dim), dtype=complex)
@@ -293,9 +291,12 @@ class QuantumSearcher:
                     state_energy = self.calculate_state_energy(i)
                     H[i, i] = state_energy
                 else:
-                    # Off-diagonal elements: collision-induced transitions
-                    collision_strength = self.calculate_collision_strength(i, j)
-                    H[i, j] = collision_strength
+                    # Off-diagonal elements: interaction-induced transitions
+                    interaction_strength = self.calculate_state_interaction_strength(i, j)
+                    H[i, j] = interaction_strength
+
+        # Ensure Hamiltonian is Hermitian
+        H = (H + H.conj().T) / 2
 
         # Convert to operator
         hamiltonian_operator = Operator(H)
@@ -303,8 +304,7 @@ class QuantumSearcher:
 
     def calculate_state_energy(self, index):
         '''
-        Calculate the energy of a quantum state based on associated particles,
-        with an added chaotic term to introduce deterministic chaos.
+        Calculate the energy of a quantum state based on associated particles.
         '''
         particle = self.particles[index % len(self.particles)]
         if isinstance(particle, Quark):
@@ -313,30 +313,35 @@ class QuantumSearcher:
             energy = flavor_energies.get(particle.flavor, 0)
         elif isinstance(particle, Lepton):
             # Energy based on flavor (in MeV)
-            flavor_energies = {'electron': 0.511, 'muon': 105.7, 'tau': 1777, 'electron neutrino': 0.0000022, 'muon neutrino': 0.17, 'tau neutrino': 18.2}
+            flavor_energies = {
+                'electron': 0.511,
+                'muon': 105.7,
+                'tau': 1776.86,
+                'electron neutrino': 0.000001,  # Approximate upper limits
+                'muon neutrino': 0.000001,
+                'tau neutrino': 0.000001
+            }
             energy = flavor_energies.get(particle.flavor, 0)
         elif isinstance(particle, Boson):
-            # Energy based on force type (in MeV)
-            force_energies = {'electromagnetic': 0, 'weak': 80379, 'strong': 0, 'gravitational': 0, 'mass': 125100}
-            energy = force_energies.get(particle.force_type, 0)
+            # Energy based on particle (in MeV)
+            boson_energies = {
+                'Photon': 0,
+                'Gluon': 0,
+                'W+': 80379,
+                'W-': 80379,
+                'Z': 91188,
+                'Higgs': 125000,
+                'Graviton': 0  # Hypothetical particle
+            }
+            energy = boson_energies.get(particle.name, 0)
         else:
             energy = 0
 
-        # Introduce a chaotic function using the logistic map
-        r = 3.8494344  # Parameter in the chaotic regime
-        x_n = (index + 1) / (2 ** self.num_qubits + 1)  # Initial x_n between 0 and 1
-        for _ in range(12):  # Iterate the logistic map several times
-            x_n = r * x_n * (1 - x_n)
-        chaotic_term = x_n
-
-        # Add the chaotic term to the energy
-        energy += chaotic_term
-
         return energy
 
-    def calculate_collision_strength(self, index_i, index_j):
+    def calculate_state_interaction_strength(self, index_i, index_j):
         '''
-        Calculate the strength of collision-induced transitions between two states.
+        Calculate the strength of interaction-induced transitions between two states.
         '''
         particle_i = self.particles[index_i % len(self.particles)]
         particle_j = self.particles[index_j % len(self.particles)]
@@ -344,29 +349,28 @@ class QuantumSearcher:
         # Use realistic interaction strengths based on particle physics
         interaction_strength = 0
 
-        # Nuclear interaction parameters
+        # Coupling constants (dimensionless)
+        alpha_strong = 1  # Approximate
+        alpha_em = 1/137
+        alpha_weak = 1e-5
+
         if isinstance(particle_i, Quark) and isinstance(particle_j, Quark):
             # Quark-quark interactions (strong force)
-            interaction_strength += 1.0  # Arbitrary strong interaction strength
+            interaction_strength += alpha_strong
         elif isinstance(particle_i, Lepton) and isinstance(particle_j, Lepton):
-            # Lepton-lepton interactions (weak force)
-            interaction_strength += 0.1  # Weaker than strong force
+            # Lepton-lepton interactions (electromagnetic and weak forces)
+            interaction_strength += alpha_em + alpha_weak
+        elif (isinstance(particle_i, Quark) and isinstance(particle_j, Lepton)) or (isinstance(particle_i, Lepton) and isinstance(particle_j, Quark)):
+            # Quark-lepton interactions (weak force)
+            interaction_strength += alpha_weak
         elif isinstance(particle_i, Boson) or isinstance(particle_j, Boson):
             # Interactions involving bosons (mediators)
-            interaction_strength += 0.5  # Intermediate strength
+            interaction_strength += alpha_em + alpha_weak + alpha_strong
         else:
             # Default minimal interaction
-            interaction_strength += 0.01
+            interaction_strength += 0.0
 
-        # Include resonance effects (simplified)
-        delta_energy = abs(self.calculate_state_energy(index_i) - self.calculate_state_energy(index_j))
-        resonance_width = 10  # Arbitrary resonance width in MeV
-        resonance_factor = np.exp(- (delta_energy ** 2) / (2 * resonance_width ** 2))
-
-        # Total collision strength
-        total_strength = interaction_strength * resonance_factor
-
-        return total_strength
+        return interaction_strength
 
     def inner_sensing(self, probabilities, iteration):
         '''
@@ -387,7 +391,7 @@ class QuantumSearcher:
                 elif isinstance(particle, Lepton):
                     print(f"    Flavor: {particle.flavor}, Spin: {particle.spin}")
                 elif isinstance(particle, Boson):
-                    print(f"    Mediated Force: {particle.force_type}")
+                    print(f"    Particle: {particle.name}, Mediated Force: {particle.force_type}")
         print("-" * 50)
 
     def generate_quasicrystal_points(self):
@@ -653,19 +657,29 @@ class QuantumSearcher:
         particle_types = [type(particle).__name__ for particle in self.particles]
         colors = {'Quark': 'blue', 'Lepton': 'green', 'Boson': 'red'}
 
+        # Aggregate probabilities over iterations for each particle
+        avg_probabilities = np.mean(particle_probabilities, axis=0)
+
+        # Sort particles based on average probability
+        sorted_indices = np.argsort(-avg_probabilities)
+        sorted_particle_names = [particle_names[i] for i in sorted_indices]
+        sorted_particle_types = [particle_types[i] for i in sorted_indices]
+        sorted_avg_probabilities = avg_probabilities[sorted_indices]
+
         # Create a figure and axis for the plot
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        # Plot probability changes for each particle
-        for idx in range(num_particles):
-            probabilities = [iteration_probs[idx] for iteration_probs in particle_probabilities]
-            ax.plot(range(iterations), probabilities, label=f'{particle_names[idx]} ({particle_types[idx]})', color=colors.get(particle_types[idx], 'black'), marker='o')
+        # Plot spike graph
+        for idx, prob in enumerate(sorted_avg_probabilities):
+            ax.vlines(idx, 0, prob, color=colors.get(sorted_particle_types[idx], 'black'), linewidth=2)
+            ax.scatter(idx, prob, color=colors.get(sorted_particle_types[idx], 'black'))
 
         # Customize the graph
         ax.set_title("Spike Graph of Particle Influence Over Iterations")
-        ax.set_xlabel("Iterations")
-        ax.set_ylabel("Probability")
-        ax.legend(loc='upper right', fontsize='small', ncol=2)
+        ax.set_xlabel("Particles")
+        ax.set_ylabel("Average Probability")
+        ax.set_xticks(range(len(sorted_particle_names)))
+        ax.set_xticklabels(sorted_particle_names, rotation=90)
         ax.grid(True)
         plt.tight_layout()
         plt.show()
@@ -685,8 +699,11 @@ class QuantumSearcher:
                     particle_i = self.particles[i % len(self.particles)]
                     particle_j = self.particles[j % len(self.particles)]
                     # Define an interaction based on similarities in properties
-                    interaction = self.calculate_interaction_strength(particle_i, particle_j)
+                    interaction = self.calculate_particle_interaction_strength(particle_i, particle_j)
                     interaction_matrix[i, j] = interaction
+
+        # Ensure interaction_matrix is Hermitian
+        interaction_matrix = (interaction_matrix + interaction_matrix.conj().T) / 2
 
         # Exponentiate the interaction matrix to simulate evolution over time
         time_evolution_operator = expm(-1j * interaction_matrix * self.time_step)
@@ -695,23 +712,39 @@ class QuantumSearcher:
         teleportation_gate = UnitaryGate(time_evolution_operator, label='Natural-Teleportation')
         return teleportation_gate
 
-    def calculate_interaction_strength(self, particle_i, particle_j):
+    def calculate_particle_interaction_strength(self, particle_i, particle_j):
         '''
         Calculate the interaction strength between two particles.
         '''
         # Realistic interaction based on particle properties
         strength = 0
+
+        # Coupling constants (dimensionless)
+        alpha_strong = 1  # Approximate
+        alpha_em = 1/137
+        alpha_weak = 1e-5
+
         if type(particle_i) == type(particle_j):
-            strength += 1.0  # Similar particles interact more strongly
+            strength += 0.1  # Similar particles interact
+
         if isinstance(particle_i, Quark) and isinstance(particle_j, Quark):
             if particle_i.color_charge == particle_j.color_charge:
-                strength += 2.0  # Strong force is stronger for same color charge
-        if isinstance(particle_i, Lepton) and isinstance(particle_j, Lepton):
+                strength += alpha_strong
+            else:
+                strength += alpha_strong * 0.5
+        elif isinstance(particle_i, Lepton) and isinstance(particle_j, Lepton):
             if particle_i.spin == particle_j.spin:
-                strength += 0.5  # Leptons with same spin have higher interaction
-        if isinstance(particle_i, Boson) and isinstance(particle_j, Boson):
+                strength += alpha_em + alpha_weak
+            else:
+                strength += alpha_weak
+        elif isinstance(particle_i, Boson) and isinstance(particle_j, Boson):
             if particle_i.force_type == particle_j.force_type:
-                strength += 0.8  # Bosons mediating same force interact
+                strength += alpha_em + alpha_weak + alpha_strong
+            else:
+                strength += alpha_weak
+        elif (isinstance(particle_i, Quark) and isinstance(particle_j, Lepton)) or (isinstance(particle_i, Lepton) and isinstance(particle_j, Quark)):
+            strength += alpha_weak
+
         return strength
 
 # Quantum Grant Searcher
